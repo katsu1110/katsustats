@@ -1,5 +1,5 @@
 """
-checkret.stats — Financial metrics computed with Polars.
+katsustats.stats — Financial metrics computed with Polars.
 
 All functions accept a Polars DataFrame with columns ["date", "pnl"]
 where "pnl" represents daily P&L (profit/loss) values, and return

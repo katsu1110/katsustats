@@ -1,5 +1,5 @@
 [project]
-name = "checkret"
+name = "katsustats"
 version = "0.1.0"
 description = "A modernized backtest report module powered by Polars"
 readme = "README.md"

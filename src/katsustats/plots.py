@@ -1,5 +1,5 @@
 """
-checkret.plots — Matplotlib chart functions for backtest visualization.
+katsustats.plots — Matplotlib chart functions for backtest visualization.
 
 All plot functions accept Polars DataFrames with ["date", "pnl"] columns
 and return matplotlib Figure objects for inline notebook display.

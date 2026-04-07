@@ -1,4 +1,4 @@
-# Checkret
+# Katsustats
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -11,18 +11,18 @@ Put your return series, and you get backtest results with visualizations and key
 ## Installation
 
 ```bash
-pip install checkret
+pip install katsustats
 ```
 
 Or with `uv`:
 
 ```bash
-uv add checkret
+uv add katsustats
 ```
 
 ## Data format
 
-`checkret` expects a [Polars](https://pola.rs/) DataFrame with two columns:
+`katsustats` expects a [Polars](https://pola.rs/) DataFrame with two columns:
 
 | column | type | description |
 |--------|------|-------------|
@@ -33,7 +33,7 @@ uv add checkret
 
 ```python
 import polars as pl
-import checkret
+import katsustats
 
 # Build your return series
 pnl = pl.DataFrame({
@@ -42,7 +42,7 @@ pnl = pl.DataFrame({
 })
 
 # Generate the full report (prints metrics + shows all plots)
-results = checkret.reports.full(pnl)
+results = katsustats.reports.full(pnl)
 ```
 
 `results` is a dict with the following keys:
@@ -62,7 +62,7 @@ benchmark = pl.DataFrame({
     "pnl": benchmark_daily_returns,
 })
 
-results = checkret.reports.full(pnl, base_pnl=benchmark)
+results = katsustats.reports.full(pnl, base_pnl=benchmark)
 ```
 
 When a benchmark is provided, the metrics table also includes **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
@@ -70,7 +70,7 @@ When a benchmark is provided, the metrics table also includes **Alpha**, **Beta*
 ## Advanced options
 
 ```python
-results = checkret.reports.full(
+results = katsustats.reports.full(
     pnl,
     base_pnl=benchmark,
     rf=0.04,          # annualized risk-free rate (default 0.0)
@@ -85,10 +85,10 @@ Generate a self-contained HTML report (similar to `qs.reports.html()`):
 
 ```python
 # Save to file
-checkret.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="report.html")
+katsustats.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="report.html")
 
 # Or get HTML string
-html_str = checkret.reports.html(pnl, title="My Strategy")
+html_str = katsustats.reports.html(pnl, title="My Strategy")
 ```
 
 The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
@@ -96,33 +96,33 @@ The report includes headline metric cards, performance tables, drawdown analysis
 ## Using individual modules
 
 ```python
-import checkret
+import katsustats
 
 # --- Stats ---
-checkret.stats.total_return(pnl)
-checkret.stats.cagr(pnl)
-checkret.stats.sharpe(pnl, rf=0.0)
-checkret.stats.sortino(pnl)
-checkret.stats.max_drawdown(pnl)
-checkret.stats.calmar(pnl)
-checkret.stats.volatility(pnl)
-checkret.stats.win_rate(pnl)
-checkret.stats.profit_factor(pnl)
-checkret.stats.value_at_risk(pnl, alpha=0.05)
+katsustats.stats.total_return(pnl)
+katsustats.stats.cagr(pnl)
+katsustats.stats.sharpe(pnl, rf=0.0)
+katsustats.stats.sortino(pnl)
+katsustats.stats.max_drawdown(pnl)
+katsustats.stats.calmar(pnl)
+katsustats.stats.volatility(pnl)
+katsustats.stats.win_rate(pnl)
+katsustats.stats.profit_factor(pnl)
+katsustats.stats.value_at_risk(pnl, alpha=0.05)
 
-checkret.stats.drawdown_details(pnl, top_n=5)      # pl.DataFrame
-checkret.stats.day_of_week_stats(pnl)              # pl.DataFrame
-checkret.stats.summary_metrics(pnl, base_pnl)     # pl.DataFrame
+katsustats.stats.drawdown_details(pnl, top_n=5)      # pl.DataFrame
+katsustats.stats.day_of_week_stats(pnl)              # pl.DataFrame
+katsustats.stats.summary_metrics(pnl, base_pnl)     # pl.DataFrame
 
 # --- Plots ---
-checkret.plots.plot_cumulative_returns(pnl, base_pnl)
-checkret.plots.plot_drawdown(pnl)
-checkret.plots.plot_monthly_heatmap(pnl)
-checkret.plots.plot_yearly_returns(pnl, base_pnl)
-checkret.plots.plot_return_distribution(pnl, base_pnl)
-checkret.plots.plot_rolling_sharpe(pnl, base_pnl)
-checkret.plots.plot_rolling_volatility(pnl, base_pnl)
-checkret.plots.plot_dow_returns(pnl)
+katsustats.plots.plot_cumulative_returns(pnl, base_pnl)
+katsustats.plots.plot_drawdown(pnl)
+katsustats.plots.plot_monthly_heatmap(pnl)
+katsustats.plots.plot_yearly_returns(pnl, base_pnl)
+katsustats.plots.plot_return_distribution(pnl, base_pnl)
+katsustats.plots.plot_rolling_sharpe(pnl, base_pnl)
+katsustats.plots.plot_rolling_volatility(pnl, base_pnl)
+katsustats.plots.plot_dow_returns(pnl)
 ```
 
 ## Metrics produced
