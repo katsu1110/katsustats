@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "katsu1110", email = "code1110g-show@hotmail.co.jp" }
 ]
-license = "Apache-2.0"
+license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 4 - Beta",
