@@ -66,6 +66,21 @@ class TestFull:
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
+    def test_grouped_input_adds_group_figure(self, sample_df, grouped_sample_df):
+        base_result = reports.full(sample_df, show=False)
+        result = reports.full(grouped_sample_df, show=False)
+        assert "group_cumulative_pnl" in result["figures"]
+        assert len(result["figures"]) == len(base_result["figures"]) + 1
+
+    def test_custom_group_column(self, grouped_sample_df):
+        sector_df = grouped_sample_df.rename({"group": "sector"})
+        result = reports.full(sector_df, group_col="sector", show=False)
+        assert "group_cumulative_pnl" in result["figures"]
+
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.full(sample_df, None, 0.04, show=False)
+        assert isinstance(result["metrics"], pl.DataFrame)
+
 
 # ---------------------------------------------------------------------------
 # reports.html
@@ -114,3 +129,16 @@ class TestHtml:
         )
         with pytest.raises(AssertionError):
             reports.html(bad_df)
+
+    def test_grouped_input_adds_group_chart(self, grouped_sample_df):
+        result = reports.html(grouped_sample_df)
+        assert "Group-level PnL" in result
+
+    def test_custom_group_column(self, grouped_sample_df):
+        sector_df = grouped_sample_df.rename({"group": "sector"})
+        result = reports.html(sector_df, group_col="sector")
+        assert "Group-level PnL" in result
+
+    def test_positional_rf_still_supported(self, sample_df):
+        result = reports.html(sample_df, None, 0.04)
+        assert isinstance(result, str)

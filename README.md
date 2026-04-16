@@ -22,12 +22,14 @@ uv add katsustats
 
 ## Data format
 
-`katsustats` expects a [Polars](https://pola.rs/) DataFrame with two columns:
+`katsustats` expects a [Polars](https://pola.rs/) DataFrame with two required columns:
 
 | column | type | description |
 |--------|------|-------------|
 | `date` | `pl.Date` | Trading date |
 | `pnl`  | `pl.Float64` | Daily return (e.g. `0.01` = +1%) |
+
+An optional `group` column can also be included for grouped portfolio PnL, such as sector-level contributions.
 
 ## Basic usage
 
@@ -67,6 +69,27 @@ results = katsustats.reports.full(pnl, base_pnl=benchmark)
 
 When a benchmark is provided, the metrics table also includes **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
 
+## With grouped portfolio PnL
+
+If your input includes a `group` column, `katsustats` will aggregate the daily portfolio PnL for the standard report sections and add a group-level cumulative PnL chart to the report.
+
+```python
+sector_pnl = pl.DataFrame({
+    "date": dates,
+    "group": sectors,   # e.g. "Tech", "Energy", ...
+    "pnl": sector_daily_pnl,
+})
+
+results = katsustats.reports.full(sector_pnl, show=False)
+html_str = katsustats.reports.html(sector_pnl, title="Sector Report")
+```
+
+If your grouping column has a different name, pass it explicitly:
+
+```python
+katsustats.reports.full(sector_pnl.rename({"group": "sector"}), group_col="sector")
+```
+
 ## Advanced options
 
 ```python
@@ -91,7 +114,7 @@ katsustats.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="re
 html_str = katsustats.reports.html(pnl, title="My Strategy")
 ```
 
-The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
+The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all charts embedded as images — all in a single `.html` file that works offline.
 
 ## Using individual modules
 
@@ -143,4 +166,3 @@ katsustats.plots.plot_dow_returns(pnl)
 | Daily VaR (95%) | 5th-percentile daily return |
 | Recovery Factor | Total return / \|Max Drawdown\| |
 | Skewness / Kurtosis | Distribution shape statistics |
-

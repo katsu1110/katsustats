@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
+import polars as pl
 import pytest
 from matplotlib.figure import Figure
 
@@ -147,4 +148,32 @@ class TestPlotDowReturns:
 
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_dow_returns(sample_df, figsize=(8, 4))
+        assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
+# plot_group_pnl
+# ---------------------------------------------------------------------------
+
+
+class TestPlotGroupPnl:
+    def test_returns_figure(self, grouped_sample_df):
+        fig = plots.plot_group_pnl(grouped_sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_custom_group_column(self, grouped_sample_df):
+        sector_df = grouped_sample_df.rename({"group": "sector"})
+        fig = plots.plot_group_pnl(sector_df, group_col="sector")
+        assert isinstance(fig, Figure)
+
+    def test_non_string_group_values(self, grouped_sample_df):
+        numeric_df = grouped_sample_df.with_columns(
+            pl.when(pl.col("group") == "Tech")
+            .then(1)
+            .when(pl.col("group") == "Energy")
+            .then(2)
+            .otherwise(3)
+            .alias("group_id")
+        ).drop("group")
+        fig = plots.plot_group_pnl(numeric_df, group_col="group_id")
         assert isinstance(fig, Figure)
