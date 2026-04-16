@@ -6,12 +6,31 @@ readme = "README.md"
 authors = [
     { name = "katsu1110", email = "code1110g-show@hotmail.co.jp" }
 ]
+license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
 dependencies = [
     "polars>=1.0.0",
     "numpy>=1.24.0",
     "matplotlib>=3.7.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/katsu1110/katsustats"
+Repository = "https://github.com/katsu1110/katsustats"
+Issues = "https://github.com/katsu1110/katsustats/issues"
 
 [dependency-groups]
 dev = ["pytest>=8.0", "ruff>=0.4"]
