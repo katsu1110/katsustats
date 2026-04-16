@@ -106,6 +106,23 @@ def benchmark_df() -> pl.DataFrame:
 
 
 @pytest.fixture
+def grouped_sample_df() -> pl.DataFrame:
+    """20 weekdays of grouped portfolio PnL contributions."""
+    groups = ["Tech", "Energy", "Financials"]
+    rows: list[dict[str, object]] = []
+    for date, ret in zip(_WEEKDAYS, _RETURNS):
+        rows.extend(
+            [
+                {"date": date, "group": groups[0], "pnl": ret * 0.5},
+                {"date": date, "group": groups[1], "pnl": ret * 0.3},
+                {"date": date, "group": groups[2], "pnl": ret * 0.2},
+            ]
+        )
+
+    return pl.DataFrame(rows).with_columns(pl.col("date").cast(pl.Date))
+
+
+@pytest.fixture
 def empty_df() -> pl.DataFrame:
     """0-row DataFrame with correct schema."""
     return pl.DataFrame(

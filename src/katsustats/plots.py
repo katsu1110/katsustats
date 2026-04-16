@@ -60,6 +60,16 @@ def _pct_formatter(x, _):
     return f"{x:.0%}" if abs(x) < 1 else f"{x:.1%}"
 
 
+def _empty_plot(message: str, figsize: tuple, title: str) -> Figure:
+    """Return a blank figure with a centered message."""
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.text(0.5, 0.5, message, ha="center", va="center", transform=ax.transAxes)
+    ax.set_title(title, fontweight="bold", fontsize=13)
+    fig.set_facecolor("white")
+    fig.tight_layout()
+    return fig
+
+
 # ---------------------------------------------------------------------------
 # Plot: Cumulative Returns
 # ---------------------------------------------------------------------------
@@ -150,12 +160,7 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
     years = sorted(monthly.get_column("year").unique().to_list())
 
     if not years:
-        fig, ax = plt.subplots(figsize=figsize)
-        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
-        ax.set_title("Monthly Returns", fontweight="bold", fontsize=13)
-        fig.set_facecolor("white")
-        fig.tight_layout()
-        return fig
+        return _empty_plot("No data", figsize, "Monthly Returns")
     month_names = [
         "Jan",
         "Feb",
@@ -222,6 +227,63 @@ def plot_monthly_heatmap(df: pl.DataFrame, figsize: tuple = (12, 5)) -> Figure:
         im, ax=ax, format=mticker.FuncFormatter(_pct_formatter), shrink=0.8, pad=0.02
     )
     fig.set_facecolor("white")
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Group Cumulative PnL
+# ---------------------------------------------------------------------------
+
+
+def plot_group_pnl(
+    df: pl.DataFrame,
+    group_col: str = "group",
+    figsize: tuple = (12, 5),
+) -> Figure:
+    """Line chart of cumulative PnL by group."""
+    assert "date" in df.columns, "df must have a 'date' column"
+    assert "pnl" in df.columns, "df must have a 'pnl' column"
+    assert group_col in df.columns, f"df must have a '{group_col}' column"
+
+    grouped = (
+        df.group_by(["date", group_col])
+        .agg(pl.col("pnl").sum().alias("pnl"))
+        .sort(["date", group_col])
+    )
+
+    group_names = grouped.get_column(group_col).unique().sort().to_list()
+    if not group_names:
+        return _empty_plot("No group data", figsize, "Group-level PnL")
+
+    wide = (
+        grouped.pivot(
+            index="date", on=group_col, values="pnl", aggregate_function="sum"
+        )
+        .sort("date")
+        .fill_null(0.0)
+    )
+    cum = wide.with_columns(pl.exclude("date").cum_sum())
+    dates = cum.get_column("date").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    cmap = plt.get_cmap("tab20")
+    for idx, name in enumerate(group_names):
+        ax.plot(
+            dates,
+            cum.get_column(name).to_numpy(),
+            lw=1.6,
+            label=str(name),
+            color=cmap(idx % 20),
+        )
+
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.legend(fontsize=9, frameon=False, ncol=min(4, max(1, len(group_names))))
+    _add_title(ax, fig, "Group-level PnL", "Cumulative sum by group")
+    fig.autofmt_xdate()
     fig.tight_layout()
     return fig
 

@@ -148,3 +148,19 @@ class TestPlotDowReturns:
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_dow_returns(sample_df, figsize=(8, 4))
         assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
+# plot_group_pnl
+# ---------------------------------------------------------------------------
+
+
+class TestPlotGroupPnl:
+    def test_returns_figure(self, grouped_sample_df):
+        fig = plots.plot_group_pnl(grouped_sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_custom_group_column(self, grouped_sample_df):
+        sector_df = grouped_sample_df.rename({"group": "sector"})
+        fig = plots.plot_group_pnl(sector_df, group_col="sector")
+        assert isinstance(fig, Figure)
