@@ -13,8 +13,8 @@ import numpy as np
 import polars as pl
 from matplotlib.figure import Figure
 
-from ._dataframe import DataFrameLike, ensure_polars
 from . import stats
+from ._dataframe import DataFrameLike, ensure_polars
 
 # ---------------------------------------------------------------------------
 # Style constants

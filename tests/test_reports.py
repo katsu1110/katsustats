@@ -82,7 +82,9 @@ class TestFull:
         assert isinstance(result["metrics"], pl.DataFrame)
 
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
-        result = reports.full(sample_pandas_df, base_pnl=benchmark_pandas_df, show=False)
+        result = reports.full(
+            sample_pandas_df, base_pnl=benchmark_pandas_df, show=False
+        )
         assert isinstance(result["metrics"], pl.DataFrame)
 
 

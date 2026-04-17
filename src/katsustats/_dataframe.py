@@ -26,7 +26,7 @@ def ensure_polars(df: DataFrameLike, *, name: str = "df") -> pl.DataFrame:
         return df
 
     if _is_pandas_dataframe(df):
-        result = pl.from_pandas(df)
+        result = pl.DataFrame(df.to_dict(orient="list"))
         if "date" in result.columns:
             result = result.with_columns(pl.col("date").cast(pl.Date))
         return result

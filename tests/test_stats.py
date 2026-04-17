@@ -389,8 +389,12 @@ class TestPandasInputs:
 
     def test_dataframe_metrics_accept_pandas(self, sample_pandas_df):
         assert isinstance(stats.drawdown_details(sample_pandas_df), pl.DataFrame)
-        assert isinstance(stats.rolling_sharpe(sample_pandas_df, window=5), pl.DataFrame)
+        assert isinstance(
+            stats.rolling_sharpe(sample_pandas_df, window=5), pl.DataFrame
+        )
 
-    def test_benchmark_metrics_accept_pandas(self, sample_pandas_df, benchmark_pandas_df):
+    def test_benchmark_metrics_accept_pandas(
+        self, sample_pandas_df, benchmark_pandas_df
+    ):
         result = stats.summary_metrics(sample_pandas_df, benchmark_pandas_df)
         assert "benchmark" in result.columns

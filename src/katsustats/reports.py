@@ -15,8 +15,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import polars as pl
 
-from ._dataframe import DataFrameLike, ensure_polars
 from . import plots, stats
+from ._dataframe import DataFrameLike, ensure_polars
 
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:

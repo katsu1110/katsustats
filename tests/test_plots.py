@@ -36,7 +36,9 @@ class TestPlotCumulativeReturns:
         assert isinstance(fig, Figure)
 
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
-        fig = plots.plot_cumulative_returns(sample_pandas_df, base_df=benchmark_pandas_df)
+        fig = plots.plot_cumulative_returns(
+            sample_pandas_df, base_df=benchmark_pandas_df
+        )
         assert isinstance(fig, Figure)
 
 
