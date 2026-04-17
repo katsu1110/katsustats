@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, Protocol
 
 import polars as pl
 
-if TYPE_CHECKING:
-    import pandas as pd
 
-    DataFrameLike = pl.DataFrame | pd.DataFrame
-else:
-    DataFrameLike = pl.DataFrame
+class _PandasDataFrameLike(Protocol):
+    """Structural type for pandas-style dataframe inputs."""
+
+    def to_dict(self, orient: str = ...) -> dict[str, list[Any]]: ...
 
 
+DataFrameLike = pl.DataFrame | _PandasDataFrameLike
 def _is_pandas_dataframe(df: object) -> bool:
     """Return True when the object is a pandas DataFrame."""
     df_type = type(df)
