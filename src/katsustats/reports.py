@@ -295,6 +295,7 @@ def full(
     figsize_main: tuple = (12, 5),
     figsize_small: tuple = (12, 4),
     show: bool = True,
+    verbose: bool = True,
 ) -> dict:
     """
     Generate a full backtest report with metrics and plots.
@@ -307,6 +308,7 @@ def full(
         figsize_main: Figure size for main charts.
         figsize_small: Figure size for smaller charts.
         show: Whether to display plots inline (default True).
+        verbose: Whether to print metric tables to stdout (default True).
 
     Returns:
         dict with keys: "metrics", "drawdowns", "dow_stats", "figures"
@@ -330,16 +332,18 @@ def full(
 
     # ── 1. Metrics Summary ──────────────────────────────────────────
     metrics = stats.summary_metrics(pnl, base_pnl, rf, periods)
-    _print_df(metrics, "Performance Metrics")
+    if verbose:
+        _print_df(metrics, "Performance Metrics")
 
     # ── 2. Top Drawdowns ────────────────────────────────────────────
     dd = stats.drawdown_details(pnl)
-    if dd.height > 0:
+    if verbose and dd.height > 0:
         _print_df(dd, "Top 5 Drawdowns")
 
     # ── 3. Day-of-Week Stats ────────────────────────────────────────
     dow = stats.day_of_week_stats(pnl)
-    _print_df(dow, "Day-of-Week Statistics")
+    if verbose:
+        _print_df(dow, "Day-of-Week Statistics")
 
     # ── 4. Plots ────────────────────────────────────────────────────
     figures: dict[str, plt.Figure] = {}

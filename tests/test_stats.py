@@ -89,6 +89,27 @@ class TestSortino:
     def test_all_negative_negative_sortino(self, all_negative_df):
         assert stats.sortino(all_negative_df) < 0
 
+    def test_known_value_uses_all_day_denominator(self):
+        """Regression: denominator is RMS of min(excess,0) over ALL days."""
+        df = pl.DataFrame(
+            {
+                "date": [
+                    "2023-01-02",
+                    "2023-01-03",
+                    "2023-01-04",
+                    "2023-01-05",
+                    "2023-01-06",
+                ],
+                "pnl": [0.02, 0.01, 0.03, -0.01, -0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        # clip upper=0: [0, 0, 0, -0.01, -0.02]
+        # sq_mean = (0 + 0 + 0 + 0.0001 + 0.0004) / 5 = 0.0001
+        # downside_std = 0.01; mean = 0.006
+        # sortino = 0.006 / 0.01 * sqrt(252)
+        expected = 0.6 * math.sqrt(252)
+        assert abs(stats.sortino(df, rf=0.0, periods=252) - expected) < 1e-8
+
 
 class TestMaxDrawdown:
     def test_returns_float(self, sample_df):
@@ -216,7 +237,14 @@ class TestDrawdownDetails:
 
     def test_schema(self, sample_df):
         dd = stats.drawdown_details(sample_df)
-        assert set(dd.columns) == {"start", "trough", "recovery", "max_dd", "days"}
+        assert set(dd.columns) == {
+            "start",
+            "trough",
+            "recovery",
+            "max_dd",
+            "drawdown_days",
+            "recovery_days",
+        }
 
     def test_max_dd_negative(self, sample_df):
         dd = stats.drawdown_details(sample_df)
@@ -230,6 +258,17 @@ class TestDrawdownDetails:
     def test_no_drawdown_empty(self, all_positive_df):
         dd = stats.drawdown_details(all_positive_df)
         assert dd.height == 0
+
+    def test_drawdown_days_non_negative(self, sample_df):
+        dd = stats.drawdown_details(sample_df)
+        if dd.height > 0:
+            assert all(v >= 0 for v in dd.get_column("drawdown_days").to_list())
+
+    def test_recovery_days_non_negative_when_not_null(self, sample_df):
+        dd = stats.drawdown_details(sample_df)
+        if dd.height > 0:
+            vals = dd.get_column("recovery_days").to_list()
+            assert all(v is None or v >= 0 for v in vals)
 
 
 class TestDayOfWeekStats:
@@ -274,8 +313,8 @@ class TestRollingSharpe:
         window = 5
         result = stats.rolling_sharpe(sample_df, window=window)
         vals = result.get_column("rolling_sharpe").to_list()
-        # First `window` values should be NaN
-        assert all(v is None or math.isnan(v) for v in vals[:window])
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
 
 
 class TestRollingVolatility:
@@ -316,10 +355,23 @@ class TestAlphaBeta:
         assert isinstance(beta, float)
 
     def test_unequal_lengths(self, sample_df, benchmark_df):
-        # Should not raise; truncates to min length
+        # Should not raise; inner-joins on date so shorter series limits rows used
         shorter = benchmark_df.head(10)
         alpha, beta = stats.alpha_beta(sample_df, shorter)
         assert isinstance(alpha, float)
+
+    def test_alpha_uses_linear_annualization(self, sample_df, benchmark_df):
+        """Regression: alpha_annual = alpha_daily * periods (not compound)."""
+        import numpy as np
+
+        alpha, beta = stats.alpha_beta(sample_df, benchmark_df)
+        r = sample_df.get_column("pnl").to_numpy()
+        b = benchmark_df.get_column("pnl").to_numpy()
+        cov = np.cov(r, b)
+        beta_raw = cov[0, 1] / cov[1, 1]
+        alpha_daily = float(np.mean(r) - beta_raw * np.mean(b))
+        expected = alpha_daily * 252
+        assert abs(alpha - expected) < 1e-10
 
 
 class TestCorrelation:
