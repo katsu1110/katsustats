@@ -331,6 +331,7 @@ def full(
         base_pnl = base_pnl.sort("date")
 
     # ── 1. Metrics Summary ──────────────────────────────────────────
+    summary = stats.summary_metrics_raw(pnl, base_pnl, rf, periods)
     metrics = stats.summary_metrics(pnl, base_pnl, rf, periods)
     if verbose:
         _print_df(metrics, "Performance Metrics")
@@ -397,6 +398,7 @@ def full(
         fig.show()
 
     return {
+        "summary": summary,
         "metrics": metrics,
         "drawdowns": dd,
         "dow_stats": dow,
@@ -468,17 +470,18 @@ def _build_html(
     date_range = f"{date_start} → {date_end}"
 
     # ── Metrics ─────────────────────────────────────────────────────
+    summary = stats.summary_metrics_raw(pnl, base_pnl, rf, periods)
     metrics_df = stats.summary_metrics(pnl, base_pnl, rf, periods)
     metrics_table = _df_to_html_table(metrics_df)
 
     # ── Headline cards ──────────────────────────────────────────────
     highlight_defs = [
-        ("Total Return", stats.total_return(pnl), True),
-        ("CAGR", stats.cagr(pnl, periods), True),
-        ("Sharpe", stats.sharpe(pnl, rf, periods), False),
-        ("Max Drawdown", stats.max_drawdown(pnl), True),
-        ("Volatility", stats.volatility(pnl, periods), True),
-        ("Win Rate", stats.win_rate(pnl), True),
+        ("Total Return", summary["total_return"], True),
+        ("CAGR", summary["cagr"], True),
+        ("Sharpe", summary["sharpe"], False),
+        ("Max Drawdown", summary["max_drawdown"], True),
+        ("Volatility", summary["volatility"], True),
+        ("Win Rate", summary["win_rate"], True),
     ]
     cards: list[str] = []
     for label, val, is_pct in highlight_defs:

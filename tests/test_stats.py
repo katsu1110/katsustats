@@ -454,6 +454,52 @@ class TestSummaryMetrics:
             assert isinstance(val, str)
 
 
+class TestSummaryMetricsRaw:
+    def test_returns_dict(self, sample_df):
+        assert isinstance(stats.summary_metrics_raw(sample_df), dict)
+
+    def test_expected_keys_without_benchmark(self, sample_df):
+        result = stats.summary_metrics_raw(sample_df)
+        assert set(result.keys()) == {
+            "total_return",
+            "cagr",
+            "sharpe",
+            "sortino",
+            "max_drawdown",
+            "calmar",
+            "volatility",
+            "win_rate",
+            "profit_factor",
+            "best_day",
+            "worst_day",
+            "avg_win",
+            "avg_loss",
+            "value_at_risk",
+            "recovery_factor",
+            "skewness",
+            "kurtosis",
+        }
+
+    def test_all_values_are_floats(self, sample_df):
+        result = stats.summary_metrics_raw(sample_df)
+        for val in result.values():
+            assert isinstance(val, float)
+
+    def test_benchmark_keys_only_appear_with_benchmark(self, sample_df, benchmark_df):
+        without = stats.summary_metrics_raw(sample_df)
+        with_bench = stats.summary_metrics_raw(sample_df, benchmark_df)
+
+        for key in {
+            "alpha",
+            "beta",
+            "correlation",
+            "information_ratio",
+            "excess_return",
+        }:
+            assert key not in without
+            assert key in with_bench
+
+
 class TestPandasInputs:
     def test_scalar_metrics_accept_pandas(self, sample_pandas_df):
         assert isinstance(stats.total_return(sample_pandas_df), float)

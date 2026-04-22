@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 import pytest
 
-from katsustats import reports
+from katsustats import reports, stats
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +24,17 @@ def close_all_figures():
 class TestFull:
     def test_returns_dict_with_expected_keys(self, sample_df):
         result = reports.full(sample_df, show=False)
-        assert set(result.keys()) == {"metrics", "drawdowns", "dow_stats", "figures"}
+        assert set(result.keys()) == {
+            "summary",
+            "metrics",
+            "drawdowns",
+            "dow_stats",
+            "figures",
+        }
+
+    def test_summary_is_raw_metrics_dict(self, sample_df):
+        result = reports.full(sample_df, show=False)
+        assert result["summary"] == stats.summary_metrics_raw(sample_df)
 
     def test_metrics_is_dataframe(self, sample_df):
         result = reports.full(sample_df, show=False)
@@ -51,6 +61,7 @@ class TestFull:
     def test_with_benchmark(self, sample_df, benchmark_df):
         result = reports.full(sample_df, base_pnl=benchmark_df, show=False)
         assert "metrics" in result
+        assert "alpha" in result["summary"]
         # Benchmark adds comparison rows
         assert result["metrics"].height > 17
 

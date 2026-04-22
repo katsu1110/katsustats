@@ -395,6 +395,137 @@ def rolling_volatility(
 # ---------------------------------------------------------------------------
 
 
+_SUMMARY_METRIC_SPECS = [
+    ("Total Return", "total_return", "pct"),
+    ("CAGR", "cagr", "pct"),
+    ("Sharpe Ratio", "sharpe", "float"),
+    ("Sortino Ratio", "sortino", "float"),
+    ("Max Drawdown", "max_drawdown", "pct"),
+    ("Calmar Ratio", "calmar", "float"),
+    ("Volatility (ann.)", "volatility", "pct"),
+    ("Win Rate", "win_rate", "pct"),
+    ("Profit Factor", "profit_factor", "float"),
+    ("Best Day", "best_day", "pct"),
+    ("Worst Day", "worst_day", "pct"),
+    ("Avg Win", "avg_win", "pct"),
+    ("Avg Loss", "avg_loss", "pct"),
+    ("Daily VaR (95%)", "value_at_risk", "pct"),
+    ("Recovery Factor", "recovery_factor", "float"),
+    ("Skewness", "skewness", "float"),
+    ("Kurtosis", "kurtosis", "float"),
+]
+
+_COMPARISON_METRIC_SPECS = [
+    ("Alpha", "alpha", "pct"),
+    ("Beta", "beta", "float"),
+    ("Correlation", "correlation", "float"),
+    ("Information Ratio", "information_ratio", "float"),
+    ("Excess Return", "excess_return", "pct"),
+]
+
+
+def _summary_metric_values(
+    df: DataFrameLike, rf: float = 0.0, periods: int = 252
+) -> dict[str, float]:
+    """
+    Compute the raw numeric summary metrics for a single return series.
+
+    Returned keys:
+        total_return, cagr, sharpe, sortino, max_drawdown, calmar,
+        volatility, win_rate, profit_factor, best_day, worst_day,
+        avg_win, avg_loss, value_at_risk, recovery_factor, skewness, kurtosis
+    """
+    df = ensure_polars(df)
+    return {
+        "total_return": float(total_return(df)),
+        "cagr": float(cagr(df, periods)),
+        "sharpe": float(sharpe(df, rf, periods)),
+        "sortino": float(sortino(df, rf, periods)),
+        "max_drawdown": float(max_drawdown(df)),
+        "calmar": float(calmar(df, periods)),
+        "volatility": float(volatility(df, periods)),
+        "win_rate": float(win_rate(df)),
+        "profit_factor": float(profit_factor(df)),
+        "best_day": float(best_day(df)),
+        "worst_day": float(worst_day(df)),
+        "avg_win": float(avg_win(df)),
+        "avg_loss": float(avg_loss(df)),
+        "value_at_risk": float(value_at_risk(df)),
+        "recovery_factor": float(recovery_factor(df)),
+        "skewness": float(skewness(df)),
+        "kurtosis": float(kurtosis(df)),
+    }
+
+
+def _comparison_metric_values(
+    df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
+) -> dict[str, float]:
+    """
+    Compute raw numeric metrics that compare a strategy to a benchmark.
+
+    Returned keys:
+        alpha, beta, correlation, information_ratio, excess_return
+    """
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, name="base_df")
+    a, b = alpha_beta(df, base_df, periods)
+    return {
+        "alpha": float(a),
+        "beta": float(b),
+        "correlation": float(correlation(df, base_df)),
+        "information_ratio": float(information_ratio(df, base_df, periods)),
+        "excess_return": float(excess_return(df, base_df)),
+    }
+
+
+def _format_summary_value(value: float, fmt: str) -> str:
+    """Format a raw numeric summary metric for display."""
+    if fmt == "pct":
+        return f"{value:.2%}"
+    return f"{value:.2f}"
+
+
+def summary_metrics_raw(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+) -> dict[str, float]:
+    """
+    Return summary metrics as raw numeric values.
+
+    Args:
+        df: Polars or pandas DataFrame with ["date", "pnl"] columns.
+        base_df: Optional benchmark DataFrame with the same schema. When
+            provided, comparison metrics are added to the returned dict.
+        rf: Annualized risk-free rate used by risk-adjusted metrics.
+        periods: Number of return periods per year.
+
+    Returns:
+        A dict[str, float] with these base keys:
+            total_return, cagr, sharpe, sortino, max_drawdown, calmar,
+            volatility, win_rate, profit_factor, best_day, worst_day,
+            avg_win, avg_loss, value_at_risk, recovery_factor, skewness,
+            kurtosis
+
+        When base_df is provided, these additional keys are included:
+            alpha, beta, correlation, information_ratio, excess_return
+
+    Example:
+        {
+            "total_return": 0.131,
+            "cagr": 0.127,
+            "sharpe": 1.42,
+            "max_drawdown": -0.187,
+            ...
+        }
+    """
+    raw = _summary_metric_values(df, rf, periods)
+    if base_df is not None:
+        raw.update(_comparison_metric_values(df, base_df, periods))
+    return raw
+
+
 def summary_metrics(
     df: DataFrameLike,
     base_df: DataFrameLike | None = None,
@@ -410,58 +541,28 @@ def summary_metrics(
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
 
-    def _compute(d: pl.DataFrame) -> dict[str, str]:
-        return {
-            "Total Return": f"{total_return(d):.2%}",
-            "CAGR": f"{cagr(d, periods):.2%}",
-            "Sharpe Ratio": f"{sharpe(d, rf, periods):.2f}",
-            "Sortino Ratio": f"{sortino(d, rf, periods):.2f}",
-            "Max Drawdown": f"{max_drawdown(d):.2%}",
-            "Calmar Ratio": f"{calmar(d, periods):.2f}",
-            "Volatility (ann.)": f"{volatility(d, periods):.2%}",
-            "Win Rate": f"{win_rate(d):.2%}",
-            "Profit Factor": f"{profit_factor(d):.2f}",
-            "Best Day": f"{best_day(d):.2%}",
-            "Worst Day": f"{worst_day(d):.2%}",
-            "Avg Win": f"{avg_win(d):.2%}",
-            "Avg Loss": f"{avg_loss(d):.2%}",
-            "Daily VaR (95%)": f"{value_at_risk(d):.2%}",
-            "Recovery Factor": f"{recovery_factor(d):.2f}",
-            "Skewness": f"{skewness(d):.2f}",
-            "Kurtosis": f"{kurtosis(d):.2f}",
-        }
-
-    strat = _compute(df)
+    strat = _summary_metric_values(df, rf, periods)
     data: dict[str, list[str]] = {
-        "metric": list(strat.keys()),
-        "strategy": list(strat.values()),
+        "metric": [label for label, _, _ in _SUMMARY_METRIC_SPECS],
+        "strategy": [
+            _format_summary_value(strat[key], fmt)
+            for label, key, fmt in _SUMMARY_METRIC_SPECS
+        ],
     }
 
     if base_df is not None:
-        bench = _compute(base_df)
-        data["benchmark"] = list(bench.values())
-
-        # Add comparison metrics
-        a, b = alpha_beta(df, base_df, periods)
-        corr = correlation(df, base_df)
-        ir = information_ratio(df, base_df, periods)
-        ex_ret = excess_return(df, base_df)
-
-        comparison_metrics = [
-            "Alpha",
-            "Beta",
-            "Correlation",
-            "Information Ratio",
-            "Excess Return",
+        bench = _summary_metric_values(base_df, rf, periods)
+        data["benchmark"] = [
+            _format_summary_value(bench[key], fmt)
+            for label, key, fmt in _SUMMARY_METRIC_SPECS
         ]
+        comparison = _comparison_metric_values(df, base_df, periods)
+        comparison_metrics = [label for label, _, _ in _COMPARISON_METRIC_SPECS]
         comparison_strat = [
-            f"{a:.2%}",
-            f"{b:.2f}",
-            f"{corr:.2f}",
-            f"{ir:.2f}",
-            f"{ex_ret:.2%}",
+            _format_summary_value(comparison[key], fmt)
+            for label, key, fmt in _COMPARISON_METRIC_SPECS
         ]
-        comparison_bench = ["—", "—", "—", "—", "—"]
+        comparison_bench = ["—"] * len(_COMPARISON_METRIC_SPECS)
 
         data["metric"].extend(comparison_metrics)
         data["strategy"].extend(comparison_strat)
