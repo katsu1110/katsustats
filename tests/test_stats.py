@@ -214,6 +214,76 @@ class TestVaR:
         assert var10 >= var5
 
 
+class TestCVaR:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.cvar(sample_df), float)
+
+    def test_cvar_worse_than_var(self, sample_df):
+        # CVaR is always at most as good as VaR (mean of tail ≤ threshold)
+        assert stats.cvar(sample_df) <= stats.value_at_risk(sample_df)
+
+    def test_negative_for_mixed_returns(self, sample_df):
+        assert stats.cvar(sample_df) < 0
+
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.cvar(empty_df))
+
+    def test_all_negative_returns_negative(self, all_negative_df):
+        assert stats.cvar(all_negative_df) < 0
+
+
+class TestTailRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.tail_ratio(sample_df), float)
+
+    def test_positive(self, sample_df):
+        assert stats.tail_ratio(sample_df) > 0
+
+    def test_all_positive_finite(self, all_positive_df):
+        # Both tails are positive; ratio must be a finite number
+        result = stats.tail_ratio(all_positive_df)
+        assert isinstance(result, float) and math.isfinite(result)
+
+
+class TestCommonSenseRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.common_sense_ratio(sample_df), float)
+
+    def test_equals_pf_times_tr(self, sample_df):
+        expected = stats.profit_factor(sample_df) * stats.tail_ratio(sample_df)
+        assert abs(stats.common_sense_ratio(sample_df) - expected) < 1e-10
+
+    def test_positive(self, sample_df):
+        assert stats.common_sense_ratio(sample_df) > 0
+
+
+class TestRiskOfRuin:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.risk_of_ruin(sample_df), float)
+
+    def test_in_unit_interval(self, sample_df):
+        ror = stats.risk_of_ruin(sample_df)
+        assert 0.0 <= ror <= 1.0
+
+    def test_all_positive_returns_zero(self, all_positive_df):
+        # No losing days — ruin impossible
+        assert stats.risk_of_ruin(all_positive_df) == 0.0
+
+    def test_all_negative_returns_one(self, all_negative_df):
+        # No winning days — ruin certain
+        assert stats.risk_of_ruin(all_negative_df) == 1.0
+
+    def test_ruin_threshold_parameter(self, sample_df):
+        # Larger loss threshold → harder to reach → lower RoR
+        ror_50 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.5)
+        ror_25 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.25)
+        assert ror_25 >= ror_50
+
+    def test_positive_threshold_raises(self, sample_df):
+        with pytest.raises(ValueError, match="ruin_threshold must be <= 0"):
+            stats.risk_of_ruin(sample_df, ruin_threshold=0.5)
+
+
 class TestRecoveryFactor:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.recovery_factor(sample_df), float)

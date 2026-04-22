@@ -163,6 +163,67 @@ def value_at_risk(df: DataFrameLike, alpha: float = 0.05) -> float:
     return float(r.quantile(alpha, interpolation="linear"))
 
 
+def cvar(df: DataFrameLike, alpha: float = 0.05) -> float:
+    """CVaR / Expected Shortfall: mean of returns at or below the VaR threshold."""
+    r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
+    threshold = r.quantile(alpha, interpolation="linear")
+    if threshold is None:
+        return float("nan")
+    tail = r.filter(r <= threshold)
+    if tail.len() == 0:
+        return float("nan")
+    return float(tail.mean())
+
+
+def tail_ratio(df: DataFrameLike, cutoff: float = 0.95) -> float:
+    """Upper-tail / lower-tail magnitude: |q_cutoff| / |q_{1-cutoff}|.
+
+    Values > 1 indicate a fatter right tail; < 1 indicate a fatter left tail.
+    """
+    r = _to_returns(df)
+    upper = r.quantile(cutoff, interpolation="linear")
+    lower = r.quantile(1.0 - cutoff, interpolation="linear")
+    if upper is None or lower is None:
+        return float("nan")
+    if upper == 0.0 and lower == 0.0:
+        return float("nan")
+    if lower == 0.0:
+        return float("inf")
+    return float(abs(upper) / abs(lower))
+
+
+def common_sense_ratio(df: DataFrameLike) -> float:
+    """Profit factor × tail ratio — combines consistency with tail asymmetry."""
+    return float(profit_factor(df) * tail_ratio(df))
+
+
+def risk_of_ruin(df: DataFrameLike, ruin_threshold: float = -0.5) -> float:
+    """Estimated probability of reaching ruin_threshold cumulative loss.
+
+    ruin_threshold must be negative (e.g. -0.5 means a 50% drawdown).
+    Uses the classic formula: ((1 - edge) / (1 + edge)) ^ n_units, where
+    edge = win_rate - (1 - win_rate) / payoff_ratio and n_units scales the
+    threshold by the average losing return.
+    """
+    if ruin_threshold > 0:
+        raise ValueError("ruin_threshold must be <= 0 (e.g. -0.5 for a 50% loss)")
+    wr = win_rate(df)
+    aw = avg_win(df)
+    al = abs(avg_loss(df))
+    if al == 0.0:
+        return 0.0  # no losing days — ruin impossible
+    if aw == 0.0:
+        return 1.0  # no winning days — ruin certain
+    pr = aw / al
+    edge = wr - (1.0 - wr) / pr
+    if edge <= 0.0:
+        return 1.0
+    n_units = abs(ruin_threshold) / al
+    return float(((1.0 - edge) / (1.0 + edge)) ** n_units)
+
+
 def recovery_factor(df: DataFrameLike) -> float:
     """Total return / |Max Drawdown|."""
     mdd = max_drawdown(df)
