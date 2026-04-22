@@ -417,8 +417,8 @@ class TestExcessReturn:
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # Inner join gives 2023-01-02 and 2023-01-03 only.
-        # Strategy total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
-        # Bench  total on those dates:   (1.01 * 1.02) - 1 ≈ 0.0302
+        # Strategy   total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
+        # Benchmark  total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
         # Excess return should be ≈ 0
         assert abs(stats.excess_return(df, base)) < 1e-10
 

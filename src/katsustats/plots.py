@@ -64,7 +64,10 @@ def _pct_formatter(x, _):
 def _align_to_common_dates(
     df: pl.DataFrame, base_df: pl.DataFrame
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Inner-join df and base_df on date, returning aligned (df, base_df) pair."""
+    """Inner-join df and base_df on date, returning aligned (df, base_df) pair.
+
+    The sort ensures chronological order since joins do not preserve row order.
+    """
     joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner").sort(
         "date"
     )
