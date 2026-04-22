@@ -463,6 +463,61 @@ def plot_rolling_volatility(
 
 
 # ---------------------------------------------------------------------------
+# Plot: Drawdown Periods (Equity Curve with Shaded Drawdown Windows)
+# ---------------------------------------------------------------------------
+
+
+def plot_drawdown_periods(
+    df: DataFrameLike,
+    top_n: int = 5,
+    figsize: tuple = (12, 5),
+) -> Figure:
+    """Equity curve with top-N drawdown windows shaded."""
+    df = ensure_polars(df)
+    r = stats._to_returns(df)
+    cumval = stats._cumulative(r)
+    dates = df.get_column("date").to_numpy()
+
+    dd_df = stats.drawdown_details(df, top_n=top_n)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.fill_between(dates, 0, cumval.to_numpy(), alpha=0.15, color=_COLORS["strategy"])
+    ax.plot(dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"])
+
+    last_date = df.get_column("date")[-1] if df.height > 0 else None
+    for row in dd_df.iter_rows(named=True):
+        peak = row["start"]
+        recovery = row["recovery"]
+        if recovery is not None:
+            end = recovery
+        elif last_date is not None:
+            end = last_date
+        else:
+            continue
+        ax.axvspan(peak, end, alpha=0.15, color=_COLORS["negative"])
+        mid = peak + (end - peak) / 2
+        ax.text(
+            mid,
+            0.98,
+            f"{row['max_dd']:.1%}",
+            ha="center",
+            va="top",
+            fontsize=8,
+            color=_COLORS["negative"],
+            transform=ax.get_xaxis_transform(),
+        )
+
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    _add_title(ax, fig, f"Drawdown Periods (Top {top_n})")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Day-of-Week Returns (New Feature)
 # ---------------------------------------------------------------------------
 

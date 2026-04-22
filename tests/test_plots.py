@@ -155,6 +155,40 @@ class TestPlotRollingVolatility:
 
 
 # ---------------------------------------------------------------------------
+# plot_drawdown_periods
+# ---------------------------------------------------------------------------
+
+
+class TestPlotDrawdownPeriods:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_drawdown_periods(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_patch_count_matches_drawdowns(self, sample_df):
+        from katsustats import stats
+
+        dd = stats.drawdown_details(sample_df, top_n=5)
+        fig = plots.plot_drawdown_periods(sample_df, top_n=5)
+        ax = fig.axes[0]
+        assert len(ax.patches) == dd.height
+
+    def test_top_n_limits_shaded_regions(self, sample_df):
+        top_n = 2
+        fig = plots.plot_drawdown_periods(sample_df, top_n=top_n)
+        ax = fig.axes[0]
+        assert len(ax.patches) <= top_n
+
+    def test_no_drawdown_no_patches(self, all_positive_df):
+        fig = plots.plot_drawdown_periods(all_positive_df)
+        ax = fig.axes[0]
+        assert len(ax.patches) == 0
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_drawdown_periods(sample_df, figsize=(8, 3))
+        assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
 # plot_dow_returns
 # ---------------------------------------------------------------------------
 
