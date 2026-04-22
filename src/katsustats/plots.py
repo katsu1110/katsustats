@@ -463,6 +463,81 @@ def plot_rolling_volatility(
 
 
 # ---------------------------------------------------------------------------
+# Plot: Returns vs Benchmark (Scatter + Regression)
+# ---------------------------------------------------------------------------
+
+
+def plot_returns_vs_benchmark(
+    df: DataFrameLike,
+    base_df: DataFrameLike,
+    figsize: tuple = (7, 7),
+) -> Figure:
+    """Scatter plot of strategy daily returns (y) vs benchmark daily returns (x) with regression line."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, name="base_df")
+    df, base_df = _align_to_common_dates(df, base_df)
+
+    r = stats._to_returns(df).to_numpy()
+    b = stats._to_returns(base_df).to_numpy()
+
+    # OLS regression: y = beta*x + alpha_daily
+    beta, alpha_daily = np.polyfit(b, r, 1)
+    beta = float(beta)
+    alpha_daily = float(alpha_daily)
+
+    # R²
+    mean_r = float(np.mean(r))
+    r_pred = beta * b + alpha_daily
+    ss_res = float(np.sum((r - r_pred) ** 2))
+    ss_tot = float(np.sum((r - mean_r) ** 2))
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot != 0 else 0.0
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    # Scatter points
+    ax.scatter(b, r, color=_COLORS["neutral"], alpha=0.6, s=18, linewidths=0)
+
+    # Regression line
+    x_line = np.array([b.min(), b.max()])
+    ax.plot(x_line, beta * x_line + alpha_daily, color=_COLORS["strategy"], lw=1.8)
+
+    # Zero reference lines
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.axvline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+
+    # Annotation
+    sign = "+" if alpha_daily >= 0 else ""
+    annotation = (
+        f"α = {sign}{alpha_daily:.4%}/day\nβ = {beta:.2f}\nR² = {r_squared:.2f}"
+    )
+    ax.text(
+        0.05,
+        0.95,
+        annotation,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        color=_COLORS["text"],
+        bbox={
+            "boxstyle": "round,pad=0.3",
+            "facecolor": "white",
+            "alpha": 0.7,
+            "edgecolor": _COLORS["grid"],
+        },
+    )
+
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.set_xlabel("Benchmark Return", fontsize=10, color=_COLORS["text_secondary"])
+    ax.set_ylabel("Strategy Return", fontsize=10, color=_COLORS["text_secondary"])
+    _add_title(ax, fig, "Returns vs Benchmark")
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Day-of-Week Returns (New Feature)
 # ---------------------------------------------------------------------------
 
