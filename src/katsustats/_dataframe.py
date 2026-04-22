@@ -22,7 +22,10 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     if isinstance(df, pl.DataFrame):
         polars_df = df
     elif _is_pandas_dataframe(df):
-        polars_df = pl.DataFrame({col: df[col].tolist() for col in df.columns})
+        try:
+            polars_df = pl.from_pandas(df)
+        except ImportError:
+            polars_df = pl.DataFrame({col: df[col].tolist() for col in df.columns})
     else:
         raise TypeError(
             f"{name} must be a Polars or pandas DataFrame, got {type(df).__name__}"

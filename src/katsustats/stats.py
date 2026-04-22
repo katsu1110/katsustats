@@ -83,13 +83,11 @@ def sortino(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     r = _to_returns(df)
     rf_per_period = rf / periods
     excess = r - rf_per_period
-    downside = excess.filter(excess < 0)
-    if downside.len() == 0:
+    # Downside deviation: RMS of min(excess, 0) over ALL days (not just negative ones)
+    downside_sq_mean = (excess.clip(upper_bound=0.0) ** 2).mean()
+    if downside_sq_mean is None or downside_sq_mean == 0.0:
         return float("inf")
-    downside_std = float((downside**2).mean() ** 0.5)
-    if downside_std == 0:
-        return 0.0
-    return float(excess.mean() / downside_std * np.sqrt(periods))
+    return float(excess.mean() / (downside_sq_mean**0.5) * np.sqrt(periods))
 
 
 def max_drawdown(df: DataFrameLike) -> float:
@@ -193,7 +191,7 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     duration in days.
 
     Returns a Polars DataFrame with columns:
-        [start, trough, recovery, max_dd, days]
+        [start, trough, recovery, max_dd, drawdown_days, recovery_days]
     """
     df = ensure_polars(df)
     r = _to_returns(df)
@@ -228,7 +226,10 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
                     if recovery_idx is not None
                     else None,
                     "max_dd": min_dd,
-                    "days": (trough_idx - start_idx),
+                    "drawdown_days": (trough_idx - start_idx),
+                    "recovery_days": (recovery_idx - trough_idx)
+                    if recovery_idx is not None
+                    else None,
                 }
             )
         else:
@@ -241,7 +242,8 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
                 "trough": pl.Series([], dtype=pl.Date),
                 "recovery": pl.Series([], dtype=pl.Date),
                 "max_dd": pl.Series([], dtype=pl.Float64),
-                "days": pl.Series([], dtype=pl.Int64),
+                "drawdown_days": pl.Series([], dtype=pl.Int64),
+                "recovery_days": pl.Series([], dtype=pl.Int64),
             }
         )
 
@@ -259,10 +261,11 @@ def alpha_beta(
     df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
 ) -> tuple[float, float]:
     """Annualized alpha and beta vs benchmark using OLS."""
-    r = _to_returns(df).to_numpy()
-    b = _to_returns(base_df).to_numpy()
-    min_len = min(len(r), len(b))
-    r, b = r[:min_len], b[:min_len]
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
+    r = joined.get_column("pnl").to_numpy()
+    b = joined.get_column("_base_pnl").to_numpy()
 
     cov = np.cov(r, b)
     var_b = cov[1, 1]
@@ -270,26 +273,28 @@ def alpha_beta(
         return 0.0, 0.0
     beta = float(cov[0, 1] / var_b)
     alpha_daily = float(np.mean(r) - beta * np.mean(b))
-    alpha_annual = (1 + alpha_daily) ** periods - 1
+    alpha_annual = alpha_daily * periods
     return alpha_annual, beta
 
 
 def correlation(df: DataFrameLike, base_df: DataFrameLike) -> float:
     """Pearson correlation between strategy and benchmark returns."""
-    r = _to_returns(df).to_numpy()
-    b = _to_returns(base_df).to_numpy()
-    min_len = min(len(r), len(b))
-    return float(np.corrcoef(r[:min_len], b[:min_len])[0, 1])
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
+    r = joined.get_column("pnl").to_numpy()
+    b = joined.get_column("_base_pnl").to_numpy()
+    return float(np.corrcoef(r, b)[0, 1])
 
 
 def information_ratio(
     df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
 ) -> float:
     """Annualized information ratio (excess return / tracking error)."""
-    r = _to_returns(df)
-    b = _to_returns(base_df)
-    min_len = min(r.len(), b.len())
-    excess = r.head(min_len) - b.head(min_len)
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
+    excess = joined.get_column("pnl") - joined.get_column("_base_pnl")
     te = float(excess.std())
     if te == 0:
         return 0.0
@@ -346,24 +351,20 @@ def rolling_sharpe(
 ) -> pl.DataFrame:
     """Rolling Sharpe ratio over a given window."""
     df = ensure_polars(df)
-    r = _to_returns(df)
-    dates = df.get_column("date")
-
-    r_np = r.to_numpy().astype(np.float64)
-    n = len(r_np)
-    sharpe_vals = np.full(n, np.nan)
-
-    for i in range(window, n):
-        chunk = r_np[i - window : i]
-        std = chunk.std(ddof=1)
-        if std > 0:
-            sharpe_vals[i] = (chunk.mean() / std) * np.sqrt(periods)
-
-    return pl.DataFrame(
-        {
-            "date": dates,
-            "rolling_sharpe": sharpe_vals,
-        }
+    return (
+        df.sort("date")
+        .with_columns(
+            [
+                pl.col("pnl").rolling_mean(window_size=window).alias("_rm"),
+                pl.col("pnl").rolling_std(window_size=window, ddof=1).alias("_rs"),
+            ]
+        )
+        .with_columns(
+            pl.when(pl.col("_rs") > 0)
+            .then(pl.col("_rm") / pl.col("_rs") * float(periods**0.5))
+            .alias("rolling_sharpe")
+        )
+        .select(["date", "rolling_sharpe"])
     )
 
 
@@ -372,22 +373,15 @@ def rolling_volatility(
 ) -> pl.DataFrame:
     """Rolling annualized volatility over a given window."""
     df = ensure_polars(df)
-    r = _to_returns(df)
-    dates = df.get_column("date")
-
-    r_np = r.to_numpy().astype(np.float64)
-    n = len(r_np)
-    vol_vals = np.full(n, np.nan)
-
-    for i in range(window, n):
-        chunk = r_np[i - window : i]
-        vol_vals[i] = chunk.std(ddof=1) * np.sqrt(periods)
-
-    return pl.DataFrame(
-        {
-            "date": dates,
-            "rolling_vol": vol_vals,
-        }
+    return (
+        df.sort("date")
+        .with_columns(
+            (
+                pl.col("pnl").rolling_std(window_size=window, ddof=1)
+                * float(periods**0.5)
+            ).alias("rolling_vol")
+        )
+        .select(["date", "rolling_vol"])
     )
 
 

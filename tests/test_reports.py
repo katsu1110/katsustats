@@ -80,6 +80,16 @@ class TestFull:
         )
         assert isinstance(result["metrics"], pl.DataFrame)
 
+    def test_verbose_false_suppresses_stdout(self, sample_df, capsys):
+        reports.full(sample_df, show=False, verbose=False)
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    def test_verbose_true_prints_output(self, sample_df, capsys):
+        reports.full(sample_df, show=False, verbose=True)
+        captured = capsys.readouterr()
+        assert len(captured.out) > 0
+
 
 # ---------------------------------------------------------------------------
 # reports.html
