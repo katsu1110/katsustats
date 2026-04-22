@@ -72,7 +72,10 @@ def sharpe(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     r = _to_returns(df)
     rf_per_period = rf / periods
     excess = r - rf_per_period
-    std = float(excess.std())
+    std = excess.std()
+    if std is None:
+        return float("nan")
+    std = float(std)
     if std == 0:
         return 0.0
     return float(excess.mean() / std * np.sqrt(periods))
@@ -309,6 +312,118 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     strat_ret = float((joined.get_column("pnl") + 1).product() - 1)
     bench_ret = float((joined.get_column("_base_pnl") + 1).product() - 1)
     return strat_ret - bench_ret
+
+
+# ---------------------------------------------------------------------------
+# Regime Analysis
+# ---------------------------------------------------------------------------
+
+
+def regime_stats(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None,
+    periods: int = 252,
+    trend_window: int = 200,
+    vol_window: int = 60,
+) -> pl.DataFrame:
+    """
+    Break down strategy performance by benchmark-defined market regime.
+
+    Returns one row for each of:
+        bull_low_vol, bull_high_vol, bear_low_vol, bear_high_vol
+    """
+    assert base_df is not None, "base_df is required for regime_stats"
+    assert trend_window > 0, "trend_window must be positive"
+    assert vol_window > 0, "vol_window must be positive"
+
+    df = ensure_polars(df, name="df")
+    base_df = ensure_polars(base_df, name="base_df")
+    assert "date" in df.columns, "df must have a 'date' column"
+    assert "pnl" in df.columns, "df must have a 'pnl' column"
+    assert "date" in base_df.columns, "base_df must have a 'date' column"
+    assert "pnl" in base_df.columns, "base_df must have a 'pnl' column"
+
+    df = df.sort("date")
+    base_df = base_df.sort("date")
+    assert df["date"].n_unique() == df.height, "df must have one row per date"
+    assert base_df["date"].n_unique() == base_df.height, (
+        "base_df must have one row per date"
+    )
+
+    base_features = base_df.with_columns(
+        ((pl.col("pnl") + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col("pnl").rolling_std(window_size=vol_window, ddof=1).alias("_rolling_vol"),
+    ).with_columns(
+        pl.col("_cumret").rolling_mean(window_size=trend_window).alias("_trend_ma")
+    )
+
+    vol_median = base_features.get_column("_rolling_vol").median()
+    if vol_median is None or np.isnan(vol_median):
+        aligned = df.head(0).with_columns(pl.Series("regime", [], dtype=pl.String))
+    else:
+        base_regimes = (
+            base_features.drop_nulls(["_trend_ma", "_rolling_vol"])
+            .with_columns(
+                pl.when(pl.col("_cumret") > pl.col("_trend_ma"))
+                .then(pl.lit("bull"))
+                .otherwise(pl.lit("bear"))
+                .alias("_trend"),
+                pl.when(pl.col("_rolling_vol") > float(vol_median))
+                .then(pl.lit("high_vol"))
+                .otherwise(pl.lit("low_vol"))
+                .alias("_vol_regime"),
+            )
+            .with_columns(
+                pl.concat_str(["_trend", "_vol_regime"], separator="_").alias("regime")
+            )
+            .select(["date", "regime"])
+        )
+        aligned = df.join(base_regimes, on="date", how="inner")
+
+    regimes = [
+        "bull_low_vol",
+        "bull_high_vol",
+        "bear_low_vol",
+        "bear_high_vol",
+    ]
+    rows: list[dict[str, float | int | str]] = []
+    for regime in regimes:
+        subset = aligned.filter(pl.col("regime") == regime).select(["date", "pnl"])
+        n_days = subset.height
+        if n_days == 0:
+            rows.append(
+                {
+                    "regime": regime,
+                    "n_days": 0,
+                    "cagr": float("nan"),
+                    "sharpe": float("nan"),
+                    "max_drawdown": float("nan"),
+                    "win_rate": float("nan"),
+                }
+            )
+            continue
+
+        rows.append(
+            {
+                "regime": regime,
+                "n_days": n_days,
+                "cagr": cagr(subset, periods),
+                "sharpe": sharpe(subset, periods=periods),
+                "max_drawdown": max_drawdown(subset),
+                "win_rate": win_rate(subset),
+            }
+        )
+
+    return pl.DataFrame(rows).cast(
+        {
+            "regime": pl.String,
+            "n_days": pl.Int64,
+            "cagr": pl.Float64,
+            "sharpe": pl.Float64,
+            "max_drawdown": pl.Float64,
+            "win_rate": pl.Float64,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

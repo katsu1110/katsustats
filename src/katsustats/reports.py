@@ -268,6 +268,9 @@ _HTML_TEMPLATE = """\
   <!-- Top Drawdowns -->
   {drawdown_section}
 
+  <!-- Regime Analysis -->
+  {regime_section}
+
   <!-- Day-of-Week Statistics -->
   <div class="section">
     <h2>Day-of-Week Statistics</h2>
@@ -508,6 +511,16 @@ def _build_html(
     else:
         drawdown_section = ""
 
+    # ── Regime Analysis ─────────────────────────────────────────────
+    if base_pnl is not None:
+        regime_df = stats.regime_stats(pnl, base_pnl, periods=periods)
+        regime_table = _df_to_html_table(regime_df)
+        regime_section = (
+            f'<div class="section"><h2>Regime Analysis</h2>{regime_table}</div>'
+        )
+    else:
+        regime_section = ""
+
     # ── Day-of-Week ─────────────────────────────────────────────────
     dow_df = stats.day_of_week_stats(pnl)
     dow_table = _df_to_html_table(dow_df)
@@ -544,6 +557,7 @@ def _build_html(
         highlight_cards=highlight_cards,
         metrics_table=metrics_table,
         drawdown_section=drawdown_section,
+        regime_section=regime_section,
         dow_table=dow_table,
         chart_sections=chart_sections,
     )

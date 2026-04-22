@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 import polars as pl
+import pytest
 
 from katsustats import stats
 
@@ -63,6 +64,9 @@ class TestVolatility:
 class TestSharpe:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.sharpe(sample_df), float)
+
+    def test_single_row_returns_nan(self, single_row_df):
+        assert math.isnan(stats.sharpe(single_row_df))
 
     def test_zero_std_returns_zero(self):
         # All identical returns → std=0 → sharpe=0
@@ -421,6 +425,75 @@ class TestExcessReturn:
         # Benchmark  total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
         # Excess return should be ≈ 0
         assert abs(stats.excess_return(df, base)) < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Regime analysis
+# ---------------------------------------------------------------------------
+
+
+class TestRegimeStats:
+    def test_returns_dataframe_with_expected_schema(self, sample_df, benchmark_df):
+        result = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
+        assert result.schema == {
+            "regime": pl.String,
+            "n_days": pl.Int64,
+            "cagr": pl.Float64,
+            "sharpe": pl.Float64,
+            "max_drawdown": pl.Float64,
+            "win_rate": pl.Float64,
+        }
+        assert result.height == 4
+        assert result.get_column("regime").to_list() == [
+            "bull_low_vol",
+            "bull_high_vol",
+            "bear_low_vol",
+            "bear_high_vol",
+        ]
+
+    def test_requires_benchmark(self, sample_df):
+        with pytest.raises(
+            AssertionError, match="base_df is required for regime_stats"
+        ):
+            stats.regime_stats(sample_df, None)
+
+    def test_large_windows_leave_short_series_with_nan_metrics(
+        self, sample_df, benchmark_df
+    ):
+        result = stats.regime_stats(sample_df, benchmark_df)
+        assert result.get_column("n_days").to_list() == [0, 0, 0, 0]
+        for col in ["cagr", "sharpe", "max_drawdown", "win_rate"]:
+            assert all(math.isnan(value) for value in result.get_column(col).to_list())
+
+    def test_window_kwargs_change_regime_assignment_counts(
+        self, sample_df, benchmark_df
+    ):
+        small = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
+        large = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=10, vol_window=10
+        )
+        assert small.get_column("n_days").sum() > large.get_column("n_days").sum()
+
+    def test_uses_inner_join_on_benchmark_dates(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, -0.01, 0.02, -0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        base = pl.DataFrame(
+            {
+                "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, -0.03, 0.04],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        result = stats.regime_stats(df, base, trend_window=2, vol_window=2)
+        assert result.get_column("n_days").sum() == 2
 
 
 # ---------------------------------------------------------------------------

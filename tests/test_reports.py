@@ -131,6 +131,14 @@ class TestHtml:
         assert isinstance(result, str)
         assert "data:image/png;base64," in result
 
+    def test_with_benchmark_includes_regime_analysis_section(
+        self, sample_df, benchmark_df
+    ):
+        result = reports.html(sample_df, base_pnl=benchmark_df)
+        assert "Regime Analysis" in result
+        assert "bull_low_vol" in result
+        assert result.index("Top Drawdowns") < result.index("Regime Analysis")
+
     def test_output_writes_file(self, sample_df, tmp_path):
         out_file = tmp_path / "report.html"
         result = reports.html(sample_df, output=str(out_file))
