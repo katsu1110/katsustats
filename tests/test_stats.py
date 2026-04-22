@@ -402,6 +402,26 @@ class TestExcessReturn:
     def test_same_returns_zero(self, sample_df):
         assert abs(stats.excess_return(sample_df, sample_df)) < 1e-10
 
+    def test_uses_inner_join_on_date(self):
+        """Regression: only common dates contribute to excess return."""
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04"],
+                "pnl": [0.01, 0.02, -0.01],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        base = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03"],
+                "pnl": [0.01, 0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        # Inner join gives 2023-01-02 and 2023-01-03 only.
+        # Strategy total on those dates: (1.01 * 1.02) - 1 ≈ 0.0302
+        # Bench  total on those dates:   (1.01 * 1.02) - 1 ≈ 0.0302
+        # Excess return should be ≈ 0
+        assert abs(stats.excess_return(df, base)) < 1e-10
+
 
 # ---------------------------------------------------------------------------
 # Summary metrics

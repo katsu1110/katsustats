@@ -302,8 +302,13 @@ def information_ratio(
 
 
 def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
-    """Total compounded excess return vs benchmark."""
-    return total_return(df) - total_return(base_df)
+    """Total compounded excess return vs benchmark (aligned on common dates)."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
+    strat_ret = float((joined.get_column("pnl") + 1).product() - 1)
+    bench_ret = float((joined.get_column("_base_pnl") + 1).product() - 1)
+    return strat_ret - bench_ret
 
 
 # ---------------------------------------------------------------------------

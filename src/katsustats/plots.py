@@ -75,6 +75,11 @@ def plot_cumulative_returns(
     df = ensure_polars(df)
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
+        joined = df.join(
+            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+        ).sort("date")
+        df = joined.select(["date", "pnl"])
+        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
     r = stats._to_returns(df)
     cumval = stats._cumulative(r)
     dates = df.get_column("date").to_numpy()
@@ -313,6 +318,11 @@ def plot_return_distribution(
     df = ensure_polars(df)
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
+        joined = df.join(
+            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+        ).sort("date")
+        df = joined.select(["date", "pnl"])
+        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
     r = stats._to_returns(df).to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -371,6 +381,11 @@ def plot_rolling_sharpe(
     df = ensure_polars(df)
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
+        joined = df.join(
+            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+        ).sort("date")
+        df = joined.select(["date", "pnl"])
+        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
     roll = stats.rolling_sharpe(df, window)
     dates = roll.get_column("date").to_numpy()
     vals = roll.get_column("rolling_sharpe").to_numpy()
@@ -414,6 +429,11 @@ def plot_rolling_volatility(
     df = ensure_polars(df)
     if base_df is not None:
         base_df = ensure_polars(base_df, name="base_df")
+        joined = df.join(
+            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+        ).sort("date")
+        df = joined.select(["date", "pnl"])
+        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
     roll = stats.rolling_volatility(df, window)
     dates = roll.get_column("date").to_numpy()
     vals = roll.get_column("rolling_vol").to_numpy()
