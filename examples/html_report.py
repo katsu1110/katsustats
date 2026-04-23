@@ -15,22 +15,28 @@ import polars as pl
 
 import katsustats
 
-rng = np.random.default_rng(seed=42)
-dates = pl.date_range(pl.date(2020, 1, 1), pl.date(2022, 12, 31), "1d", eager=True)
-n = len(dates)
 
-pnl = pl.DataFrame(
-    {"date": dates, "pnl": rng.normal(loc=0.0005, scale=0.011, size=n).tolist()}
-)
-benchmark = pl.DataFrame(
-    {"date": dates, "pnl": rng.normal(loc=0.0003, scale=0.008, size=n).tolist()}
-)
+def main() -> None:
+    rng = np.random.default_rng(seed=42)
+    dates = pl.date_range(pl.date(2020, 1, 1), pl.date(2022, 12, 31), "1d", eager=True)
+    n = len(dates)
 
-katsustats.reports.html(
-    pnl,
-    base_pnl=benchmark,
-    title="Demo Strategy",
-    output="report.html",
-)
+    pnl = pl.DataFrame(
+        {"date": dates, "pnl": rng.normal(loc=0.0005, scale=0.011, size=n).tolist()}
+    )
+    benchmark = pl.DataFrame(
+        {"date": dates, "pnl": rng.normal(loc=0.0003, scale=0.008, size=n).tolist()}
+    )
 
-print("Report written to report.html")
+    katsustats.reports.html(
+        pnl,
+        base_pnl=benchmark,
+        title="Demo Strategy",
+        output="report.html",
+    )
+
+    print("Report written to report.html")
+
+
+if __name__ == "__main__":
+    main()

@@ -33,10 +33,10 @@ CI enforces both checks on every pull request.
 ## Code conventions
 
 - All modules start with `from __future__ import annotations`
-- Functions only — no classes
+- Prefer functions over introducing new public classes; typing-only/internal classes (e.g. `Protocol`s) are allowed where appropriate
 - snake_case function names; `_` prefix for private helpers
-- Short one-line docstrings on all public functions
-- Input validation via `assert` (not `raise ValueError`)
+- Public functions should have clear docstrings; use one-line or multi-line docstrings as appropriate
+- Validate inputs explicitly and follow existing patterns; both `assert` and `raise ValueError` are used in the codebase where appropriate
 - Plot styling goes through the shared `_apply_style()` / `_add_title()` helpers in `plots.py`
 - Keep examples self-contained — no helper imports between example scripts
 
