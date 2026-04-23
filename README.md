@@ -1,6 +1,9 @@
 # Katsustats
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![CI](https://github.com/katsu1110/katsustats/actions/workflows/ci.yml/badge.svg)](https://github.com/katsu1110/katsustats/actions/workflows/ci.yml)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 A simple backtest tool for your return series, inspired by [quantstats](https://github.com/ranaroussi/quantstats). 
 
