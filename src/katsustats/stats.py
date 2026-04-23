@@ -251,22 +251,28 @@ def kurtosis(df: DataFrameLike) -> float:
 
 def _longest_streak(r: pl.Series, positive: bool) -> int:
     """Return the longest run of positive (positive=True) or negative values."""
-    best = 0
-    current = 0
-    for v in r.to_list():
-        if v is not None and (v > 0 if positive else v < 0):
-            current += 1
-            if current > best:
-                best = current
-        else:
-            current = 0
-    return best
+    is_streak = ((r > 0) if positive else (r < 0)).fill_null(False)
+    streak_lengths = (
+        pl.DataFrame({"is_streak": is_streak})
+        .with_columns(
+            (pl.col("is_streak") != pl.col("is_streak").shift(1).fill_null(False))
+            .cum_sum()
+            .alias("grp")
+        )
+        .filter(pl.col("is_streak"))
+        .group_by("grp")
+        .len()
+        .get_column("len")
+    )
+    max_len = streak_lengths.max()
+    return int(max_len) if max_len is not None else 0
 
 
 def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
     """Compounded returns aggregated by calendar period ('1mo' or '1y')."""
     return (
-        df.sort("date")
+        df.with_columns(pl.col("date").cast(pl.Date))
+        .sort("date")
         .group_by_dynamic("date", every=every)
         .agg((pl.col("pnl") + 1).product() - 1)
         .get_column("pnl")

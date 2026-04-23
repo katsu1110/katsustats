@@ -660,6 +660,17 @@ class TestPandasInputs:
         result = stats.summary_metrics(sample_pandas_df, benchmark_pandas_df)
         assert "benchmark" in result.columns
 
+    def test_streak_and_exposure_metrics_accept_pandas(self, sample_pandas_df):
+        assert isinstance(stats.consecutive_wins(sample_pandas_df), int)
+        assert isinstance(stats.consecutive_losses(sample_pandas_df), int)
+        assert isinstance(stats.exposure(sample_pandas_df), float)
+
+    def test_period_extrema_metrics_accept_pandas(self, sample_pandas_df):
+        assert isinstance(stats.best_month(sample_pandas_df), float)
+        assert isinstance(stats.worst_month(sample_pandas_df), float)
+        assert isinstance(stats.best_year(sample_pandas_df), float)
+        assert isinstance(stats.worst_year(sample_pandas_df), float)
+
 
 # ---------------------------------------------------------------------------
 # Streaks, Period Extrema & Exposure
