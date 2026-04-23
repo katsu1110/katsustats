@@ -348,6 +348,78 @@ def plot_yearly_returns(
 
 
 # ---------------------------------------------------------------------------
+# Plot: EOY (End-of-Year) Compounded Returns
+# ---------------------------------------------------------------------------
+
+
+def plot_eoy_returns(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
+    figsize: tuple = (12, 5),
+) -> Figure:
+    """Bar chart of compounded end-of-year returns."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
+
+    def _eoy(d: pl.DataFrame) -> pl.DataFrame:
+        return (
+            d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
+            .group_by("year")
+            .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+            .sort("year")
+        )
+
+    strat_y = _eoy(df)
+
+    if base_df is not None:
+        bench_y = _eoy(base_df)
+        # Align on common years via inner join
+        aligned_y = strat_y.join(
+            bench_y.rename({"ret": "bench_ret"}), on="year", how="inner"
+        ).sort("year")
+        strat_y = aligned_y.select(["year", "ret"])
+        bench_y = aligned_y.select(["year", "bench_ret"]).rename({"bench_ret": "ret"})
+
+    years = strat_y.get_column("year").to_numpy()
+    strat_vals = strat_y.get_column("ret").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    x = np.arange(len(years))
+    width = 0.35 if base_df is not None else 0.6
+
+    strat_colors = [
+        _COLORS["positive"] if v >= 0 else _COLORS["negative"] for v in strat_vals
+    ]
+    ax.bar(x, strat_vals, width, label="Strategy", color=strat_colors, alpha=0.85)
+
+    if base_df is not None:
+        bench_vals = bench_y.get_column("ret").to_numpy()
+        bench_colors = [
+            _COLORS["positive"] if v >= 0 else _COLORS["negative"] for v in bench_vals
+        ]
+        ax.bar(
+            x + width,
+            bench_vals,
+            width,
+            label="Benchmark",
+            color=bench_colors,
+            alpha=0.6,
+        )
+
+    ax.set_xticks(x + (width / 2 if base_df is not None else 0))
+    ax.set_xticklabels([str(y) for y in years], fontsize=9)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.axhline(0, color=_COLORS["neutral"], lw=1.2, ls="-")
+    ax.legend(fontsize=9, frameon=False)
+    _add_title(ax, fig, "EOY Returns")
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Return Distribution
 # ---------------------------------------------------------------------------
 
