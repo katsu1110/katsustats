@@ -659,3 +659,183 @@ class TestPandasInputs:
     ):
         result = stats.summary_metrics(sample_pandas_df, benchmark_pandas_df)
         assert "benchmark" in result.columns
+
+    def test_streak_and_exposure_metrics_accept_pandas(self, sample_pandas_df):
+        assert isinstance(stats.consecutive_wins(sample_pandas_df), int)
+        assert isinstance(stats.consecutive_losses(sample_pandas_df), int)
+        assert isinstance(stats.exposure(sample_pandas_df), float)
+
+    def test_period_extrema_metrics_accept_pandas(self, sample_pandas_df):
+        assert isinstance(stats.best_month(sample_pandas_df), float)
+        assert isinstance(stats.worst_month(sample_pandas_df), float)
+        assert isinstance(stats.best_year(sample_pandas_df), float)
+        assert isinstance(stats.worst_year(sample_pandas_df), float)
+
+
+# ---------------------------------------------------------------------------
+# Streaks, Period Extrema & Exposure
+# ---------------------------------------------------------------------------
+
+
+class TestConsecutiveWins:
+    def test_returns_int(self, sample_df):
+        assert isinstance(stats.consecutive_wins(sample_df), int)
+
+    def test_positive_for_mixed(self, sample_df):
+        assert stats.consecutive_wins(sample_df) > 0
+
+    def test_zero_for_all_negative(self, all_negative_df):
+        assert stats.consecutive_wins(all_negative_df) == 0
+
+    def test_all_positive(self, all_positive_df):
+        assert stats.consecutive_wins(all_positive_df) == all_positive_df.height
+
+    def test_empty_df_returns_zero(self, empty_df):
+        assert stats.consecutive_wins(empty_df) == 0
+
+    def test_known_value(self):
+        df = pl.DataFrame(
+            {
+                "date": [
+                    "2023-01-02",
+                    "2023-01-03",
+                    "2023-01-04",
+                    "2023-01-05",
+                    "2023-01-06",
+                ],
+                "pnl": [0.01, 0.02, -0.01, 0.03, 0.04],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        # streak: 2 wins, then loss, then 2 wins → max is 2
+        assert stats.consecutive_wins(df) == 2
+
+
+class TestConsecutiveLosses:
+    def test_returns_int(self, sample_df):
+        assert isinstance(stats.consecutive_losses(sample_df), int)
+
+    def test_positive_for_mixed(self, sample_df):
+        assert stats.consecutive_losses(sample_df) > 0
+
+    def test_zero_for_all_positive(self, all_positive_df):
+        assert stats.consecutive_losses(all_positive_df) == 0
+
+    def test_all_negative(self, all_negative_df):
+        assert stats.consecutive_losses(all_negative_df) == all_negative_df.height
+
+    def test_empty_df_returns_zero(self, empty_df):
+        assert stats.consecutive_losses(empty_df) == 0
+
+    def test_known_value(self):
+        df = pl.DataFrame(
+            {
+                "date": [
+                    "2023-01-02",
+                    "2023-01-03",
+                    "2023-01-04",
+                    "2023-01-05",
+                    "2023-01-06",
+                ],
+                "pnl": [-0.01, -0.02, 0.01, -0.03, -0.04],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        # streak: 2 losses, then win, then 2 losses → max is 2
+        assert stats.consecutive_losses(df) == 2
+
+
+class TestBestWorstMonth:
+    def test_best_month_returns_float(self, sample_df):
+        assert isinstance(stats.best_month(sample_df), float)
+
+    def test_worst_month_returns_float(self, sample_df):
+        assert isinstance(stats.worst_month(sample_df), float)
+
+    def test_best_ge_worst(self, sample_df):
+        assert stats.best_month(sample_df) >= stats.worst_month(sample_df)
+
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.best_month(empty_df))
+        assert math.isnan(stats.worst_month(empty_df))
+
+    def test_known_value(self):
+        # January 2023: (1.01)(0.99) - 1 ≈ -0.0001 (one month, known result)
+        # February 2023: (1.02) - 1 = 0.02
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-02-01"],
+                "pnl": [0.01, -0.01, 0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        best = stats.best_month(df)
+        worst = stats.worst_month(df)
+        assert best == pytest.approx(0.02, abs=1e-10)
+        assert worst == pytest.approx(1.01 * 0.99 - 1, abs=1e-10)
+
+    def test_all_positive_best_month_positive(self, all_positive_df):
+        assert stats.best_month(all_positive_df) > 0
+
+
+class TestBestWorstYear:
+    def test_best_year_returns_float(self, sample_df):
+        assert isinstance(stats.best_year(sample_df), float)
+
+    def test_worst_year_returns_float(self, sample_df):
+        assert isinstance(stats.worst_year(sample_df), float)
+
+    def test_best_ge_worst(self, sample_df):
+        assert stats.best_year(sample_df) >= stats.worst_year(sample_df)
+
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.best_year(empty_df))
+        assert math.isnan(stats.worst_year(empty_df))
+
+    def test_known_value(self):
+        # 2022 year: single day, return 0.05
+        # 2023 year: single day, return -0.03
+        df = pl.DataFrame(
+            {
+                "date": ["2022-06-01", "2023-06-01"],
+                "pnl": [0.05, -0.03],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert stats.best_year(df) == pytest.approx(0.05, abs=1e-10)
+        assert stats.worst_year(df) == pytest.approx(-0.03, abs=1e-10)
+
+    def test_all_positive_best_year_positive(self, all_positive_df):
+        assert stats.best_year(all_positive_df) > 0
+
+
+class TestExposure:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.exposure(sample_df), float)
+
+    def test_in_unit_interval(self, sample_df):
+        e = stats.exposure(sample_df)
+        assert 0.0 <= e <= 1.0
+
+    def test_all_positive_is_one(self, all_positive_df):
+        assert stats.exposure(all_positive_df) == 1.0
+
+    def test_all_negative_is_one(self, all_negative_df):
+        assert stats.exposure(all_negative_df) == 1.0
+
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.exposure(empty_df))
+
+    def test_partial_exposure(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, 0.0, -0.02, 0.0],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert stats.exposure(df) == pytest.approx(0.5, abs=1e-10)
+
+    def test_all_zeros_is_zero(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03"],
+                "pnl": [0.0, 0.0],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert stats.exposure(df) == 0.0
