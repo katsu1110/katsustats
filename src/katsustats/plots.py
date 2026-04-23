@@ -375,10 +375,9 @@ def plot_eoy_returns(
     if base_df is not None:
         bench_y = _eoy(base_df)
         # Align on common years via inner join
-        aligned_y = (
-            strat_y.join(bench_y.rename({"ret": "bench_ret"}), on="year", how="inner")
-            .sort("year")
-        )
+        aligned_y = strat_y.join(
+            bench_y.rename({"ret": "bench_ret"}), on="year", how="inner"
+        ).sort("year")
         strat_y = aligned_y.select(["year", "ret"])
         bench_y = aligned_y.select(["year", "bench_ret"]).rename({"bench_ret": "ret"})
 
