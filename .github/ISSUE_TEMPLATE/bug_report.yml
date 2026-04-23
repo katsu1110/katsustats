@@ -1,0 +1,43 @@
+name: Bug report
+description: Report incorrect behaviour or an unexpected error
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducer
+      description: Paste the smallest snippet that triggers the bug.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: |
+        Run `python -c "import katsustats, polars, sys; print(katsustats.__version__, polars.__version__, sys.version)"` and paste the output.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour / traceback
+    validations:
+      required: true

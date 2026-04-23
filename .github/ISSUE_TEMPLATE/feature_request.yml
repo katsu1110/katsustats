@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a new metric, chart, or other enhancement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What problem would this solve for you?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_api
+    attributes:
+      label: Proposed API (optional)
+      description: Sketch the function signature or output you have in mind.
+      render: python
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Did you consider any workarounds or alternative approaches?

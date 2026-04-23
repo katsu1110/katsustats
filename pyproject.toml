@@ -21,6 +21,18 @@ classifiers = [
     "Topic :: Office/Business :: Financial :: Investment",
     "Typing :: Typed",
 ]
+keywords = [
+    "backtest",
+    "quant",
+    "quantitative-finance",
+    "polars",
+    "sharpe",
+    "drawdown",
+    "returns",
+    "finance",
+    "trading",
+    "performance-analytics",
+]
 dependencies = [
     "polars>=1.0.0",
     "numpy>=1.24.0",
