@@ -55,6 +55,49 @@ class TestPlotCumulativeReturns:
 
 
 # ---------------------------------------------------------------------------
+# plot_log_equity
+# ---------------------------------------------------------------------------
+
+
+class TestPlotLogEquity:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_log_equity(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_yscale_is_log(self, sample_df):
+        fig = plots.plot_log_equity(sample_df)
+        ax = fig.axes[0]
+        assert ax.get_yscale() == "log"
+
+    def test_with_benchmark(self, sample_df, benchmark_df):
+        fig = plots.plot_log_equity(sample_df, base_df=benchmark_df)
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        assert ax.get_yscale() == "log"
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_log_equity(sample_df, figsize=(8, 3))
+        assert isinstance(fig, Figure)
+
+    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
+        fig = plots.plot_log_equity(sample_pandas_df, base_df=benchmark_pandas_df)
+        assert isinstance(fig, Figure)
+
+    def test_offset_benchmark_dates_do_not_raise(self, sample_df):
+        """Regression: misaligned benchmark dates handled via inner join."""
+        import polars as pl
+
+        offset_bench = pl.DataFrame(
+            {
+                "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
+                "pnl": [0.01, -0.01, 0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        fig = plots.plot_log_equity(sample_df, base_df=offset_bench)
+        assert isinstance(fig, Figure)
+
+
+# ---------------------------------------------------------------------------
 # plot_drawdown
 # ---------------------------------------------------------------------------
 

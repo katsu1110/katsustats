@@ -125,6 +125,57 @@ def plot_cumulative_returns(
 
 
 # ---------------------------------------------------------------------------
+# Plot: Log-Scale Equity Curve
+# ---------------------------------------------------------------------------
+
+
+def _multiplier_formatter(x, _):
+    return f"{x:.1f}×"
+
+
+def plot_log_equity(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
+    figsize: tuple = (12, 5),
+) -> Figure:
+    """Log-scale equity curve showing cumulative growth as a multiplier."""
+    df = ensure_polars(df)
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df")
+        df, base_df = _align_to_common_dates(df, base_df)
+    r = stats._to_returns(df)
+    cumval = stats._cumulative_value(r).to_numpy()
+    dates = df.get_column("date").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.fill_between(dates, 1.0, cumval, alpha=0.15, color=_COLORS["strategy"])
+    ax.plot(dates, cumval, lw=1.8, color=_COLORS["strategy"], label="Strategy")
+
+    if base_df is not None:
+        br = stats._to_returns(base_df)
+        bcum = stats._cumulative_value(br).to_numpy()
+        ax.plot(
+            base_df.get_column("date").to_numpy(),
+            bcum,
+            lw=1.4,
+            color=_COLORS["benchmark"],
+            label="Benchmark",
+            alpha=0.85,
+        )
+
+    ax.set_yscale("log")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_multiplier_formatter))
+    ax.axhline(1.0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.legend(fontsize=9, frameon=False)
+    _add_title(ax, fig, "Log-Scale Equity Curve")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
 # Plot: Drawdown (Underwater)
 # ---------------------------------------------------------------------------
 
