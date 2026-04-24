@@ -85,8 +85,6 @@ class TestPlotLogEquity:
 
     def test_offset_benchmark_dates_do_not_raise(self, sample_df):
         """Regression: misaligned benchmark dates handled via inner join."""
-        import polars as pl
-
         offset_bench = pl.DataFrame(
             {
                 "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
