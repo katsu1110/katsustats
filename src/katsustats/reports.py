@@ -352,53 +352,37 @@ def full(
     # ── 4. Plots ────────────────────────────────────────────────────
     figures: dict[str, plt.Figure] = {}
 
-    # Cumulative Returns
-    fig = plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main)
-    figures["cumulative_returns"] = fig
-    if show:
-        fig.show()
+    def _handle_fig(name: str, fg: plt.Figure) -> None:
+        figures[name] = fg
+        if show:
+            fg.show()
+        else:
+            plt.close(fg)
 
-    # Drawdown
-    fig = plots.plot_drawdown(pnl, figsize=figsize_small)
-    figures["drawdown"] = fig
-    if show:
-        fig.show()
-
-    # Monthly Heatmap
-    fig = plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
-    figures["monthly_heatmap"] = fig
-    if show:
-        fig.show()
-
-    # Yearly Returns
-    fig = plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
-    figures["yearly_returns"] = fig
-    if show:
-        fig.show()
-
-    # Return Distribution
-    fig = plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main)
-    figures["distribution"] = fig
-    if show:
-        fig.show()
-
-    # Rolling Sharpe
-    fig = plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small)
-    figures["rolling_sharpe"] = fig
-    if show:
-        fig.show()
-
-    # Rolling Volatility
-    fig = plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small)
-    figures["rolling_volatility"] = fig
-    if show:
-        fig.show()
-
-    # Day-of-Week Analysis
-    fig = plots.plot_dow_returns(pnl)
-    figures["dow_returns"] = fig
-    if show:
-        fig.show()
+    _handle_fig(
+        "cumulative_returns",
+        plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main),
+    )
+    _handle_fig("drawdown", plots.plot_drawdown(pnl, figsize=figsize_small))
+    _handle_fig(
+        "monthly_heatmap", plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
+    )
+    _handle_fig(
+        "yearly_returns", plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
+    )
+    _handle_fig(
+        "distribution",
+        plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main),
+    )
+    _handle_fig(
+        "rolling_sharpe",
+        plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small),
+    )
+    _handle_fig(
+        "rolling_volatility",
+        plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small),
+    )
+    _handle_fig("dow_returns", plots.plot_dow_returns(pnl))
 
     return {
         "summary": summary,
