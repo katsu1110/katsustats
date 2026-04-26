@@ -131,6 +131,13 @@ class TestHtml:
         assert isinstance(result, str)
         assert "data:image/png;base64," in result
 
+    def test_includes_period_performance_section(self, sample_df):
+        result = reports.html(sample_df)
+        assert "Period Performance" in result
+        assert "MTD" in result
+        assert "SI" in result
+        assert result.index("Period Performance") < result.index("Top Drawdowns")
+
     def test_with_benchmark_includes_regime_analysis_section(self):
         from datetime import date, timedelta
 

@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import polars as pl
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 
 from . import stats
@@ -34,6 +35,11 @@ _COLORS = {
 }
 
 _DOW_COLORS = ["#E53935", "#FB8C00", "#FDD835", "#43A047", "#1E88E5"]  # Mon-Fri
+
+_HEATMAP_CMAP = LinearSegmentedColormap.from_list(
+    "katsustats_diverging",
+    [_COLORS["negative"], "#ffffff", _COLORS["positive"]],
+)
 
 
 def _apply_style(ax, fig):
@@ -98,7 +104,6 @@ def plot_cumulative_returns(
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    ax.fill_between(dates, 0, cumval.to_numpy(), alpha=0.15, color=_COLORS["strategy"])
     ax.plot(
         dates, cumval.to_numpy(), lw=1.8, color=_COLORS["strategy"], label="Strategy"
     )
@@ -141,7 +146,6 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    ax.fill_between(dates, dd, 0, alpha=0.45, color=_COLORS["negative"])
     ax.plot(dates, dd, lw=0.8, color=_COLORS["negative"])
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.set_ylim(top=0)
@@ -241,7 +245,7 @@ def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
         vmax = 0.01
     im = ax.imshow(
         data,
-        cmap="RdYlGn",
+        cmap=_HEATMAP_CMAP,
         aspect="auto",
         vmin=-vmax,
         vmax=vmax,
@@ -258,7 +262,7 @@ def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
         for j in range(12):
             val = data[i, j]
             if not np.isnan(val):
-                color = "white" if abs(val) > vmax * 0.6 else _COLORS["text"]
+                color = "white" if abs(val) > vmax * 0.5 else _COLORS["text"]
                 ax.text(
                     j,
                     i,
@@ -545,7 +549,6 @@ def plot_rolling_volatility(
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
-    ax.fill_between(dates, 0, vals, alpha=0.2, color=_COLORS["strategy"])
     ax.plot(dates, vals, lw=1.4, color=_COLORS["strategy"], label="Strategy")
 
     if base_df is not None:

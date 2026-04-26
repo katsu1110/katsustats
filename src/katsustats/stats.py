@@ -295,6 +295,20 @@ def consecutive_losses(df: DataFrameLike) -> int:
     return _longest_streak(r, positive=False)
 
 
+def positive_months_pct(df: DataFrameLike) -> float:
+    """Fraction of calendar months with a positive compounded return."""
+    df = ensure_polars(df)
+    monthly = _period_returns(df, "1mo")
+    return float((monthly > 0).mean()) if monthly.len() > 0 else float("nan")
+
+
+def positive_years_pct(df: DataFrameLike) -> float:
+    """Fraction of calendar years with a positive compounded return."""
+    df = ensure_polars(df)
+    yearly = _period_returns(df, "1y")
+    return float((yearly > 0).mean()) if yearly.len() > 0 else float("nan")
+
+
 def best_month(df: DataFrameLike) -> float:
     """Compounded return of the best calendar month."""
     df = ensure_polars(df)
@@ -678,9 +692,16 @@ _SUMMARY_METRIC_SPECS = [
     ("Avg Win", "avg_win", "pct"),
     ("Avg Loss", "avg_loss", "pct"),
     ("Daily VaR (95%)", "value_at_risk", "pct"),
+    ("CVaR (95%)", "cvar", "pct"),
     ("Recovery Factor", "recovery_factor", "float"),
     ("Skewness", "skewness", "float"),
     ("Kurtosis", "kurtosis", "float"),
+    ("Best Month", "best_month", "pct"),
+    ("Worst Month", "worst_month", "pct"),
+    ("Best Year", "best_year", "pct"),
+    ("Worst Year", "worst_year", "pct"),
+    ("Positive Months", "positive_months_pct", "pct"),
+    ("Positive Years", "positive_years_pct", "pct"),
 ]
 
 _COMPARISON_METRIC_SPECS = [
@@ -719,9 +740,16 @@ def _summary_metric_values(
         "avg_win": float(avg_win(df)),
         "avg_loss": float(avg_loss(df)),
         "value_at_risk": float(value_at_risk(df)),
+        "cvar": float(cvar(df)),
         "recovery_factor": float(recovery_factor(df)),
         "skewness": float(skewness(df)),
         "kurtosis": float(kurtosis(df)),
+        "best_month": float(best_month(df)),
+        "worst_month": float(worst_month(df)),
+        "best_year": float(best_year(df)),
+        "worst_year": float(worst_year(df)),
+        "positive_months_pct": float(positive_months_pct(df)),
+        "positive_years_pct": float(positive_years_pct(df)),
     }
 
 
@@ -836,4 +864,117 @@ def summary_metrics(
         data["strategy"].extend(comparison_strat)
         data["benchmark"].extend(comparison_bench)
 
+    return pl.DataFrame(data)
+
+
+# ---------------------------------------------------------------------------
+# Period Performance
+# ---------------------------------------------------------------------------
+
+_PERIOD_LABELS = ["MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"]
+
+
+def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
+    """Return the start date for a named period, or None if insufficient data."""
+    import datetime as dt
+
+    a: dt.date = anchor
+    if label == "MTD":
+        return dt.date(a.year, a.month, 1)
+    if label == "QTD":
+        q_start_month = ((a.month - 1) // 3) * 3 + 1
+        return dt.date(a.year, q_start_month, 1)
+    if label == "YTD":
+        return dt.date(a.year, 1, 1)
+
+    def _subtract_years(d: dt.date, n: int) -> dt.date:
+        try:
+            return dt.date(d.year - n, d.month, d.day)
+        except ValueError:  # Feb 29 on non-leap year
+            return dt.date(d.year - n, d.month, d.day - 1)
+
+    if label == "1Y":
+        return _subtract_years(a, 1)
+    if label == "3Y":
+        return _subtract_years(a, 3)
+    if label == "5Y":
+        return _subtract_years(a, 5)
+    return None  # SI — caller uses full series
+
+
+def _trailing_return(df: pl.DataFrame, cutoff: pl.Date | None) -> float:
+    """Compounded return from cutoff to end of df.  None means full series."""
+    if df.height == 0:
+        return float("nan")
+    if cutoff is None:
+        return float(total_return(df))
+    first = df.get_column("date").min()
+    if cutoff <= first:
+        return float("nan")
+    subset = df.filter(pl.col("date") >= cutoff)
+    return float(total_return(subset)) if subset.height > 0 else float("nan")
+
+
+def period_performance_raw(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
+) -> dict[str, dict[str, float]]:
+    """
+    Trailing-period compounded returns for MTD, QTD, YTD, 1Y, 3Y, 5Y, SI.
+
+    Returns a dict keyed by period label.  Each value is a dict with key
+    "strategy" (always present) and "benchmark" (when base_df provided).
+    Periods that start before the first data point return float("nan").
+    """
+    df = ensure_polars(df)
+    df = df.sort("date")
+    if base_df is not None:
+        base_df = ensure_polars(base_df, name="base_df").sort("date")
+
+    if df.height == 0:
+        row: dict[str, float] = {"strategy": float("nan")}
+        if base_df is not None:
+            row["benchmark"] = float("nan")
+        return {lbl: dict(row) for lbl in _PERIOD_LABELS}
+
+    anchor = df.get_column("date").max()
+    result: dict[str, dict[str, float]] = {}
+    for lbl in _PERIOD_LABELS:
+        cutoff = _period_cutoff(anchor, lbl)  # None for SI
+        entry: dict[str, float] = {"strategy": _trailing_return(df, cutoff)}
+        if base_df is not None:
+            entry["benchmark"] = _trailing_return(base_df, cutoff)
+        result[lbl] = entry
+
+    return result
+
+
+def period_performance(
+    df: DataFrameLike,
+    base_df: DataFrameLike | None = None,
+) -> pl.DataFrame:
+    """
+    Formatted period-performance table (MTD, QTD, YTD, 1Y, 3Y, 5Y, SI).
+
+    Returns a Polars DataFrame with columns [period, strategy] and optionally
+    [benchmark] when base_df is provided.  Values are pre-formatted strings
+    (e.g. "12.34%" or "—") to match the summary_metrics rendering contract.
+    """
+    raw = period_performance_raw(df, base_df)
+    rows_period: list[str] = []
+    rows_strat: list[str] = []
+    rows_bench: list[str] = []
+
+    for lbl in _PERIOD_LABELS:
+        v = raw[lbl]
+        rows_period.append(lbl)
+        sv = v["strategy"]
+        rows_strat.append("—" if (sv != sv) else f"{sv:.2%}")
+        if base_df is not None:
+            bv = v.get("benchmark", float("nan"))
+            rows_bench.append("—" if (bv != bv) else f"{bv:.2%}")
+
+    data: dict[str, list[str]] = {"period": rows_period, "strategy": rows_strat}
+    if base_df is not None:
+        data["benchmark"] = rows_bench
     return pl.DataFrame(data)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -68,6 +69,33 @@ def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
     return base64.b64encode(buf.read()).decode("utf-8")
 
 
+_PCT_COLS = {
+    "cagr",
+    "max_drawdown",
+    "max_dd",
+    "win_rate",
+    "mean_return",
+    "total_return",
+    "volatility",
+}
+_INT_COLS = {"n_days", "count", "dow", "drawdown_days", "recovery_days"}
+
+
+def _format_cell(col: str, val: object) -> str:
+    """Format a table cell value based on its column name."""
+    if val is None:
+        return "—"
+    if isinstance(val, float) and math.isnan(val):
+        return "—"
+    if col in _PCT_COLS:
+        return f"{val:.2%}"
+    if col in _INT_COLS:
+        return str(int(val))  # type: ignore[arg-type]
+    if isinstance(val, float):
+        return f"{val:.4f}"
+    return str(val)
+
+
 def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     """Convert a Polars DataFrame to a styled HTML <table> string."""
     cols = df.columns
@@ -75,15 +103,10 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     n_rows = len(data[cols[0]])
 
     rows_html: list[str] = []
-    # Header
     header_cells = "".join(f"<th>{col}</th>" for col in cols)
     rows_html.append(f"<tr>{header_cells}</tr>")
-    # Body
     for i in range(n_rows):
-        cells = "".join(
-            f"<td>{data[col][i] if data[col][i] is not None else '—'}</td>"
-            for col in cols
-        )
+        cells = "".join(f"<td>{_format_cell(col, data[col][i])}</td>" for col in cols)
         rows_html.append(f"<tr>{cells}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
@@ -102,16 +125,16 @@ _HTML_TEMPLATE = """\
 <title>{title} — Backtest Report</title>
 <style>
   :root {{
-    --bg: #0f1117;
-    --surface: #1a1d29;
-    --surface2: #242837;
-    --border: #2e3348;
-    --text: #e8eaed;
-    --text2: #9aa0b4;
-    --accent: #6c8cff;
-    --accent2: #4ecdc4;
-    --positive: #4caf50;
-    --negative: #ef5350;
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --surface2: #f1f3f5;
+    --border: #dee2e6;
+    --text: #212529;
+    --text2: #6c757d;
+    --accent: #2563eb;
+    --accent2: #0d9488;
+    --positive: #2e7d32;
+    --negative: #c62828;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -265,6 +288,9 @@ _HTML_TEMPLATE = """\
     {metrics_table}
   </div>
 
+  <!-- Period Performance -->
+  {period_performance_section}
+
   <!-- Top Drawdowns -->
   {drawdown_section}
 
@@ -338,6 +364,7 @@ def full(
     metrics = stats.summary_metrics(pnl, base_pnl, rf, periods)
     if verbose:
         _print_df(metrics, "Performance Metrics")
+        _print_df(stats.period_performance(pnl, base_pnl), "Period Performance")
 
     # ── 2. Top Drawdowns ────────────────────────────────────────────
     dd = stats.drawdown_details(pnl)
@@ -485,6 +512,13 @@ def _build_html(
         )
     highlight_cards = "\n    ".join(cards)
 
+    # ── Period Performance ───────────────────────────────────────────
+    period_df = stats.period_performance(pnl, base_pnl)
+    period_table = _df_to_html_table(period_df)
+    period_performance_section = (
+        f'<div class="section"><h2>Period Performance</h2>{period_table}</div>'
+    )
+
     # ── Drawdowns ───────────────────────────────────────────────────
     dd_df = stats.drawdown_details(pnl)
     if dd_df.height > 0:
@@ -498,10 +532,14 @@ def _build_html(
     # ── Regime Analysis ─────────────────────────────────────────────
     if base_pnl is not None:
         regime_df = stats.regime_stats(pnl, base_pnl, periods=periods)
-        regime_table = _df_to_html_table(regime_df)
-        regime_section = (
-            f'<div class="section"><h2>Regime Analysis</h2>{regime_table}</div>'
-        )
+        regime_df = regime_df.filter(pl.col("n_days") > 0)
+        if regime_df.height > 0:
+            regime_table = _df_to_html_table(regime_df)
+            regime_section = (
+                f'<div class="section"><h2>Regime Analysis</h2>{regime_table}</div>'
+            )
+        else:
+            regime_section = ""
     else:
         regime_section = ""
 
@@ -540,6 +578,7 @@ def _build_html(
         n_days=n_days,
         highlight_cards=highlight_cards,
         metrics_table=metrics_table,
+        period_performance_section=period_performance_section,
         drawdown_section=drawdown_section,
         regime_section=regime_section,
         dow_table=dow_table,

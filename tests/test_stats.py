@@ -618,9 +618,16 @@ class TestSummaryMetricsRaw:
             "avg_win",
             "avg_loss",
             "value_at_risk",
+            "cvar",
             "recovery_factor",
             "skewness",
             "kurtosis",
+            "best_month",
+            "worst_month",
+            "best_year",
+            "worst_year",
+            "positive_months_pct",
+            "positive_years_pct",
         }
 
     def test_all_values_are_floats(self, sample_df):
@@ -839,3 +846,135 @@ class TestExposure:
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         assert stats.exposure(df) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Positive months / years pct
+# ---------------------------------------------------------------------------
+
+
+class TestPositiveMonthsPct:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.positive_months_pct(sample_df), float)
+
+    def test_between_zero_and_one(self, sample_df):
+        val = stats.positive_months_pct(sample_df)
+        assert 0.0 <= val <= 1.0
+
+    def test_empty_df_returns_nan(self):
+        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        )
+        assert math.isnan(stats.positive_months_pct(df))
+
+    def test_all_positive_returns_one(self):
+        from datetime import date, timedelta
+
+        dates = [date(2023, 1, 1) + timedelta(days=i) for i in range(60)]
+        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 60}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        assert stats.positive_months_pct(df) == 1.0
+
+
+class TestPositiveYearsPct:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.positive_years_pct(sample_df), float)
+
+    def test_between_zero_and_one(self, sample_df):
+        val = stats.positive_years_pct(sample_df)
+        assert 0.0 <= val <= 1.0
+
+    def test_empty_df_returns_nan(self):
+        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        )
+        assert math.isnan(stats.positive_years_pct(df))
+
+
+# ---------------------------------------------------------------------------
+# Period Performance
+# ---------------------------------------------------------------------------
+
+
+class TestPeriodPerformanceRaw:
+    def test_returns_dict_with_all_labels(self, sample_df):
+        result = stats.period_performance_raw(sample_df)
+        assert set(result.keys()) == {"MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"}
+
+    def test_si_matches_total_return(self, sample_df):
+        raw = stats.period_performance_raw(sample_df)
+        assert abs(raw["SI"]["strategy"] - stats.total_return(sample_df)) < 1e-10
+
+    def test_short_series_returns_nan_for_long_windows(self):
+        from datetime import date, timedelta
+
+        dates = [date(2023, 1, 1) + timedelta(days=i) for i in range(30)]
+        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 30}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        raw = stats.period_performance_raw(df)
+        assert math.isnan(raw["5Y"]["strategy"])
+        assert math.isnan(raw["3Y"]["strategy"])
+        assert math.isnan(raw["1Y"]["strategy"])
+
+    def test_benchmark_key_absent_without_base(self, sample_df):
+        raw = stats.period_performance_raw(sample_df)
+        for entry in raw.values():
+            assert "benchmark" not in entry
+
+    def test_benchmark_key_present_with_base(self, sample_df, benchmark_df):
+        raw = stats.period_performance_raw(sample_df, benchmark_df)
+        for entry in raw.values():
+            assert "benchmark" in entry
+
+    def test_empty_df(self):
+        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        )
+        raw = stats.period_performance_raw(df)
+        for entry in raw.values():
+            assert math.isnan(entry["strategy"])
+
+
+class TestPeriodPerformance:
+    def test_returns_dataframe(self, sample_df):
+        result = stats.period_performance(sample_df)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_columns_without_benchmark(self, sample_df):
+        result = stats.period_performance(sample_df)
+        assert result.columns == ["period", "strategy"]
+
+    def test_columns_with_benchmark(self, sample_df, benchmark_df):
+        result = stats.period_performance(sample_df, benchmark_df)
+        assert result.columns == ["period", "strategy", "benchmark"]
+
+    def test_all_labels_present(self, sample_df):
+        result = stats.period_performance(sample_df)
+        assert result.get_column("period").to_list() == [
+            "MTD",
+            "QTD",
+            "YTD",
+            "1Y",
+            "3Y",
+            "5Y",
+            "SI",
+        ]
+
+    def test_values_are_strings(self, sample_df):
+        result = stats.period_performance(sample_df)
+        for val in result.get_column("strategy").to_list():
+            assert isinstance(val, str)
+
+    def test_nan_renders_as_dash(self):
+        from datetime import date, timedelta
+
+        dates = [date(2023, 6, 1) + timedelta(days=i) for i in range(30)]
+        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 30}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        result = stats.period_performance(df)
+        strat = dict(zip(result["period"].to_list(), result["strategy"].to_list()))
+        assert strat["5Y"] == "—"
+        assert strat["SI"] != "—"
