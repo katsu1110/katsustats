@@ -357,7 +357,12 @@ def full(
     # ensure_polars() already compounds duplicate same-date rows with a warning,
     # so this uniqueness check is a defensive sanity check.
     pnl = pnl.sort("date")
-    assert pnl["date"].n_unique() == pnl.height, "pnl must have unique dates"
+    assert pnl["date"].n_unique() == pnl.height, (
+        "pnl dates are expected to be unique after ensure_polars() normalization "
+        "and compounding of duplicate same-date rows; if duplicates still exist, "
+        "this indicates an unexpected post-normalization state or a bug. "
+        "Please report this issue if it persists."
+    )
     if base_pnl is not None:
         base_pnl = base_pnl.sort("date")
 
