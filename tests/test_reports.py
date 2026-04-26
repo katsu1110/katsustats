@@ -91,6 +91,11 @@ class TestFull:
         )
         assert isinstance(result["metrics"], pl.DataFrame)
 
+    def test_datetime_date_column_accepted(self, sample_df):
+        dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
+        result = reports.full(dt_df, show=False, verbose=False)
+        assert isinstance(result["drawdowns"], pl.DataFrame)
+
     def test_verbose_false_suppresses_stdout(self, sample_df, capsys):
         reports.full(sample_df, show=False, verbose=False)
         captured = capsys.readouterr()

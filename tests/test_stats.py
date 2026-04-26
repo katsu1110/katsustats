@@ -351,6 +351,16 @@ class TestDrawdownDetails:
             assert dd.schema["trough"] == pl.Date
             assert dd.schema["recovery"] == pl.Date
 
+    def test_datetime_date_column_accepted(self, sample_df):
+        dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
+        dd = stats.drawdown_details(dt_df)
+        assert isinstance(dd, pl.DataFrame)
+        if dd.height > 0:
+            assert dd.schema["start"] == pl.Date
+            assert dd.schema["trough"] == pl.Date
+            assert dd.schema["recovery"] == pl.Date
+        assert dd.height == stats.drawdown_details(sample_df).height
+
 
 class TestDayOfWeekStats:
     def test_returns_dataframe(self, sample_df):
