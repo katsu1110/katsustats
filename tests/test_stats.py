@@ -952,6 +952,56 @@ class TestPeriodPerformanceRaw:
         for entry in raw.values():
             assert "benchmark" in entry
 
+    def test_pandas_datetime_inputs_are_aggregated_to_daily_before_join(self):
+        from datetime import datetime, time, timedelta
+
+        import pandas as pd
+
+        num_days = 400
+        start = datetime(2024, 1, 1)
+        days = [start + timedelta(days=i) for i in range(num_days)]
+        intraday_dates = [
+            datetime.combine(day.date(), session)
+            for day in days
+            for session in (time(9, 30), time(16, 0))
+        ]
+        strategy_session_returns = [0.001, 0.002]
+        benchmark_session_returns = [0.0005, 0.001]
+        daily_strategy_return = (
+            (1 + strategy_session_returns[0]) * (1 + strategy_session_returns[1])
+        ) - 1
+        daily_benchmark_return = (
+            (1 + benchmark_session_returns[0]) * (1 + benchmark_session_returns[1])
+        ) - 1
+        intraday_df = pd.DataFrame(
+            {"date": intraday_dates, "pnl": strategy_session_returns * num_days}
+        )
+        intraday_base_df = pd.DataFrame(
+            {"date": intraday_dates, "pnl": benchmark_session_returns * num_days}
+        )
+        daily_df = pd.DataFrame(
+            {
+                "date": [day.date() for day in days],
+                "pnl": [daily_strategy_return] * num_days,
+            }
+        )
+        daily_base_df = pd.DataFrame(
+            {
+                "date": [day.date() for day in days],
+                "pnl": [daily_benchmark_return] * num_days,
+            }
+        )
+
+        raw = stats.period_performance_raw(intraday_df, intraday_base_df)
+        expected = stats.period_performance_raw(daily_df, daily_base_df)
+
+        for label in raw:
+            for key in raw[label]:
+                if math.isnan(expected[label][key]):
+                    assert math.isnan(raw[label][key])
+                else:
+                    assert raw[label][key] == pytest.approx(expected[label][key])
+
     def test_empty_df(self):
         df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
             pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
@@ -1002,3 +1052,26 @@ class TestPeriodPerformance:
         strat = dict(zip(result["period"].to_list(), result["strategy"].to_list()))
         assert strat["5Y"] == "—"
         assert strat["SI"] != "—"
+
+    def test_accepts_pandas_datetime_inputs(self):
+        from datetime import datetime, timedelta
+
+        import pandas as pd
+
+        start = datetime(2024, 1, 1)
+        dates = [start + timedelta(days=i) for i in range(400)]
+        df = pd.DataFrame({"date": dates, "pnl": [0.001] * 400})
+        base_df = pd.DataFrame({"date": dates, "pnl": [0.0005] * 400})
+
+        result = stats.period_performance(df, base_df)
+
+        assert result.columns == ["period", "strategy", "benchmark"]
+        assert result.get_column("period").to_list() == [
+            "MTD",
+            "QTD",
+            "YTD",
+            "1Y",
+            "3Y",
+            "5Y",
+            "SI",
+        ]

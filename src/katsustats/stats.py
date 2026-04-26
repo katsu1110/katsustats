@@ -279,6 +279,17 @@ def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
     )
 
 
+def _daily_returns(df: pl.DataFrame) -> pl.DataFrame:
+    """Compound returns to one row per calendar date."""
+    return (
+        df.with_columns(pl.col("date").cast(pl.Date))
+        .sort("date")
+        .group_by("date")
+        .agg(((pl.col("pnl") + 1).product() - 1).alias("pnl"))
+        .sort("date")
+    )
+
+
 def consecutive_wins(df: DataFrameLike) -> int:
     """Longest streak of consecutive positive daily returns."""
     r = _to_returns(df)
@@ -949,10 +960,9 @@ def period_performance_raw(
     Strategy and benchmark are aligned to common dates before computing so
     both columns in the table always reflect the same date range.
     """
-    df = ensure_polars(df)
-    df = df.sort("date")
+    df = _daily_returns(ensure_polars(df))
     if base_df is not None:
-        base_df = ensure_polars(base_df, name="base_df").sort("date")
+        base_df = _daily_returns(ensure_polars(base_df, name="base_df"))
         # Align to common dates so strategy and benchmark use the same anchor.
         joined = df.join(
             base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
