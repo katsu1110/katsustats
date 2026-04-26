@@ -964,19 +964,31 @@ class TestPeriodPerformanceRaw:
             for day in days
             for session in (time(9, 30), time(16, 0))
         ]
-        df = pd.DataFrame({"date": intraday_dates, "pnl": [0.001, 0.002] * 400})
-        base_df = pd.DataFrame({"date": intraday_dates, "pnl": [0.0005, 0.001] * 400})
+        intraday_strategy_returns = [0.001, 0.002]
+        intraday_benchmark_returns = [0.0005, 0.001]
+        daily_strategy_return = (
+            (1 + intraday_strategy_returns[0]) * (1 + intraday_strategy_returns[1])
+        ) - 1
+        daily_benchmark_return = (
+            (1 + intraday_benchmark_returns[0]) * (1 + intraday_benchmark_returns[1])
+        ) - 1
+        intraday_df = pd.DataFrame(
+            {"date": intraday_dates, "pnl": intraday_strategy_returns * 400}
+        )
+        intraday_base_df = pd.DataFrame(
+            {"date": intraday_dates, "pnl": intraday_benchmark_returns * 400}
+        )
         daily_df = pd.DataFrame(
-            {"date": [day.date() for day in days], "pnl": [(1.001 * 1.002) - 1] * 400}
+            {"date": [day.date() for day in days], "pnl": [daily_strategy_return] * 400}
         )
         daily_base_df = pd.DataFrame(
             {
                 "date": [day.date() for day in days],
-                "pnl": [(1.0005 * 1.001) - 1] * 400,
+                "pnl": [daily_benchmark_return] * 400,
             }
         )
 
-        raw = stats.period_performance_raw(df, base_df)
+        raw = stats.period_performance_raw(intraday_df, intraday_base_df)
         expected = stats.period_performance_raw(daily_df, daily_base_df)
 
         for label in raw:
