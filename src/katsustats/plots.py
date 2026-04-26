@@ -149,6 +149,15 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
 
+    ax.fill_between(
+        dates,
+        dd,
+        0,
+        where=dd < 0,
+        color=_COLORS["negative"],
+        alpha=0.2,
+        interpolate=True,
+    )
     ax.plot(dates, dd, lw=0.8, color=_COLORS["negative"])
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.set_ylim(top=0)

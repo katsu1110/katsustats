@@ -5,6 +5,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import polars as pl
 import pytest
+from matplotlib.collections import PolyCollection
 from matplotlib.figure import Figure
 
 from katsustats import plots
@@ -15,6 +16,16 @@ def close_all_figures():
     """Close all matplotlib figures after each test to avoid memory leaks."""
     yield
     plt.close("all")
+
+
+def _drawdown_fill_collections(fig: Figure) -> list[PolyCollection]:
+    """Return PolyCollection artists added to the drawdown plot axes."""
+    ax = fig.axes[0]
+    return [
+        collection
+        for collection in ax.collections
+        if isinstance(collection, PolyCollection)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +79,18 @@ class TestPlotDrawdown:
         # Should not raise even when there's no drawdown
         fig = plots.plot_drawdown(all_positive_df)
         assert isinstance(fig, Figure)
+
+    @pytest.mark.parametrize(
+        ("fixture_name", "has_paths"),
+        [("sample_df", True), ("all_positive_df", False)],
+    )
+    def test_fill_artist_is_added(self, fixture_name, has_paths, request):
+        df = request.getfixturevalue(fixture_name)
+        fig = plots.plot_drawdown(df)
+        collections = _drawdown_fill_collections(fig)
+
+        assert len(collections) == 1
+        assert bool(collections[0].get_paths()) is has_paths
 
 
 # ---------------------------------------------------------------------------
