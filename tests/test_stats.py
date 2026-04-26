@@ -36,6 +36,20 @@ class TestTotalReturn:
         result = stats.total_return(df)
         assert abs(result - (-0.01)) < 1e-10
 
+    def test_duplicate_dates_warns_and_compounds_same_day_returns(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
+                "pnl": [0.10, -0.05, 0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = stats.total_return(df)
+
+        expected = (1.10 * 0.95) * 1.02 - 1.0
+        assert abs(result - expected) < 1e-10
+
 
 class TestCagr:
     def test_returns_float(self, sample_df):
@@ -1020,7 +1034,8 @@ class TestPeriodPerformanceRaw:
             }
         )
 
-        raw = stats.period_performance_raw(intraday_df, intraday_base_df)
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            raw = stats.period_performance_raw(intraday_df, intraday_base_df)
         expected = stats.period_performance_raw(daily_df, daily_base_df)
 
         for label in raw:

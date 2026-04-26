@@ -37,6 +37,9 @@ with two required columns:
 When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
 start of processing.
 
+If multiple rows share the same `date`, `katsustats` compounds those same-day
+`pnl` values into one daily return, emits a warning, and continues.
+
 ## Basic usage
 
 ```python

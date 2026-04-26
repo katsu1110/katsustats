@@ -81,9 +81,22 @@ class TestFull:
         result = reports.full(sample_df, None, 0.04, show=False)
         assert isinstance(result["metrics"], pl.DataFrame)
 
-    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
-        with pytest.raises(AssertionError):
-            reports.full(grouped_sample_pandas_df, show=False)
+    def test_duplicate_dates_warns_and_aggregates(self):
+        duplicate_dates_df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
+                "pnl": [0.10, 0.20, -0.10],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        # 2023-01-02 => (1.10 * 1.20) - 1 = 0.32
+        # across dates  => (1.32 * 0.90) - 1 = 0.188
+        expected_total_return = (1.10 * 1.20) * 0.90 - 1.0
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.full(duplicate_dates_df, show=False)
+
+        assert result["summary"]["total_return"] == pytest.approx(expected_total_return)
 
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
         result = reports.full(
@@ -223,6 +236,21 @@ class TestHtml:
         result = reports.html(sample_df, None, 0.04)
         assert isinstance(result, str)
 
-    def test_duplicate_dates_raises(self, grouped_sample_pandas_df):
-        with pytest.raises(AssertionError):
-            reports.html(grouped_sample_pandas_df)
+    def test_duplicate_dates_warns_and_aggregates(self):
+        duplicate_dates_df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
+                "pnl": [0.10, 0.20, -0.10],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.html(duplicate_dates_df)
+
+        # HTML should reflect the compounded series (2 rows, not 3)
+        assert isinstance(result, str)
+        assert result == reports.html(
+            pl.DataFrame(
+                {"date": ["2023-01-02", "2023-01-03"], "pnl": [0.32, -0.10]}
+            ).with_columns(pl.col("date").cast(pl.Date))
+        )

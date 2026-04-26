@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from ._dataframe import DataFrameLike, ensure_polars
+from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -281,13 +281,8 @@ def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
 
 def _daily_returns(df: pl.DataFrame) -> pl.DataFrame:
     """Compound returns to one row per calendar date."""
-    return (
-        df.with_columns(pl.col("date").cast(pl.Date))
-        .sort("date")
-        .group_by("date")
-        .agg(((pl.col("pnl") + 1).product() - 1).alias("pnl"))
-        .sort("date")
-    )
+    normalised = df.with_columns(pl.col("date").cast(pl.Date)).sort("date")
+    return _compound_by_date(normalised)
 
 
 def consecutive_wins(df: DataFrameLike) -> int:
