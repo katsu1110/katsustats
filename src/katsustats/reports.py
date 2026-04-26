@@ -353,11 +353,11 @@ def full(
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 
-    # Sort by date and assert one row per date
+    # Sort by date after normalization.
+    # ensure_polars() already compounds duplicate same-date rows with a warning,
+    # so this uniqueness check is a defensive sanity check.
     pnl = pnl.sort("date")
-    assert pnl["date"].n_unique() == pnl.height, (
-        "pnl must have one row per date; pass pre-aggregated portfolio-level returns"
-    )
+    assert pnl["date"].n_unique() == pnl.height, "pnl must have unique dates"
     if base_pnl is not None:
         base_pnl = base_pnl.sort("date")
 
@@ -471,10 +471,11 @@ def _build_html(
         assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
         assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
 
+    # Sort by date after normalization.
+    # ensure_polars() already compounds duplicate same-date rows with a warning,
+    # so this uniqueness check is a defensive sanity check.
     pnl = pnl.sort("date")
-    assert pnl["date"].n_unique() == pnl.height, (
-        "pnl must have one row per date; pass pre-aggregated portfolio-level returns"
-    )
+    assert pnl["date"].n_unique() == pnl.height, "pnl must have unique dates"
     if base_pnl is not None:
         base_pnl = base_pnl.sort("date")
 
