@@ -96,6 +96,20 @@ class TestFull:
         result = reports.full(dt_df, show=False, verbose=False)
         assert isinstance(result["drawdowns"], pl.DataFrame)
 
+    def test_pandas_datetime_date_column_accepted(self):
+        from datetime import datetime, timedelta
+
+        import pandas as pd
+
+        start = datetime(2024, 1, 1)
+        dates = [start + timedelta(days=i) for i in range(20)]
+        pnl = [0.01, -0.005, 0.008, -0.012, 0.003] * 4
+        df = pd.DataFrame({"date": dates, "pnl": pnl})
+
+        result = reports.full(df, show=False, verbose=False)
+
+        assert isinstance(result["drawdowns"], pl.DataFrame)
+
     def test_verbose_false_suppresses_stdout(self, sample_df, capsys):
         reports.full(sample_df, show=False, verbose=False)
         captured = capsys.readouterr()

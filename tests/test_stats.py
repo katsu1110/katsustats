@@ -361,6 +361,24 @@ class TestDrawdownDetails:
             assert dd.schema["recovery"] == pl.Date
         assert dd.height == stats.drawdown_details(sample_df).height
 
+    def test_pandas_datetime_date_column_accepted(self):
+        from datetime import datetime, timedelta
+
+        import pandas as pd
+
+        start = datetime(2024, 1, 1)
+        dates = [start + timedelta(days=i) for i in range(8)]
+        pnl = [0.02, -0.01, -0.03, 0.01, 0.005, -0.02, 0.01, 0.015]
+        df = pd.DataFrame({"date": dates, "pnl": pnl})
+
+        dd = stats.drawdown_details(df)
+
+        assert isinstance(dd, pl.DataFrame)
+        if dd.height > 0:
+            assert dd.schema["start"] == pl.Date
+            assert dd.schema["trough"] == pl.Date
+            assert dd.schema["recovery"] == pl.Date
+
 
 class TestDayOfWeekStats:
     def test_returns_dataframe(self, sample_df):
