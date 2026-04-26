@@ -71,10 +71,8 @@ start of processing.
 
 If `date` is datetime-like, it is normalized to `pl.Date` before analysis.
 
-After normalization, each `date` must appear exactly once.
-
-If your input has multiple rows for the same day, pre-aggregate them into a
-single daily return before calling `katsustats`.
+If multiple rows share the same `date`, `katsustats` compounds those same-day
+`pnl` values into one daily return, emits a warning, and continues.
 
 ## Basic usage
 

@@ -58,6 +58,11 @@ ignore = ["E501"]
 [tool.hatch.version]
 path = "src/katsustats/__init__.py"
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/img",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
