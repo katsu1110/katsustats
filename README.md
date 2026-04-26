@@ -6,9 +6,36 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Sponsor](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/katsu1110)
 
-A simple backtest tool for your return series, inspired by [quantstats](https://github.com/ranaroussi/quantstats). 
+`katsustats` is a Polars-powered analytics and reporting library for daily return series, inspired by [quantstats](https://github.com/ranaroussi/quantstats).
 
-Put your return series, and you get backtest results with visualizations and key metrics.
+Pass a DataFrame with `date` and `pnl`, and get summary metrics, drawdown analysis, key metrics with visualizations, and a self-contained HTML report.
+
+Highlights:
+
+- Polars-first API with pandas input support
+- Benchmark-aware performance comparison
+- Self-contained offline HTML reports
+- Functional modules for `stats`, `plots`, and `reports`
+
+## Preview
+
+### Cumulative returns
+
+![Cumulative returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/cumulative_returns.png)
+
+### Additional charts
+
+| Drawdowns | Monthly returns |
+|-----------|-----------------|
+| ![Drawdown preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/drawdowns.png) | ![Monthly returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/monthly_returns.png) |
+
+| Yearly returns | Rolling Sharpe |
+|----------------|----------------|
+| ![Yearly returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/yearly_returns.png) | ![Rolling Sharpe preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/rolling_sharpe.png) |
+
+| Rolling volatility | Day-of-week returns |
+|--------------------|---------------------|
+| ![Rolling volatility preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/rolling_vol.png) | ![Day-of-week preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/dow.png) |
 
 # How to use
 
@@ -24,6 +51,11 @@ Or with `uv`:
 uv add katsustats
 ```
 
+## Try it online
+
+- [Open in Google Colab](https://colab.research.google.com/drive/1PnbZdvZboEtV8F8gjrF3oTrQ3IzC5CdT?usp=sharing)
+- [Open in Kaggle](https://www.kaggle.com/code/code1110/katsustats-quickstart)
+
 ## Data format
 
 `katsustats` accepts either a [Polars](https://pola.rs/) or pandas DataFrame
@@ -31,14 +63,18 @@ with two required columns:
 
 | column | type | description |
 |--------|------|-------------|
-| `date` | `pl.Date` | Trading date |
-| `pnl`  | `pl.Float64` | Daily return (e.g. `0.01` = +1%) |
+| `date` | date-like | Trading date |
+| `pnl`  | float-like | Daily return (e.g. `0.01` = +1%) |
 
 When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
 start of processing.
 
-If multiple rows share the same `date`, `katsustats` compounds those same-day
-`pnl` values into one daily return, emits a warning, and continues.
+If `date` is datetime-like, it is normalized to `pl.Date` before analysis.
+
+After normalization, each `date` must appear exactly once.
+
+If your input has multiple rows for the same day, pre-aggregate them into a
+single daily return before calling `katsustats`.
 
 ## Basic usage
 
@@ -69,14 +105,17 @@ pnl = pd.DataFrame({
 results = katsustats.reports.full(pnl)
 ```
 
+See also the runnable examples in [`examples/quickstart.py`](examples/quickstart.py), [`examples/with_benchmark.py`](examples/with_benchmark.py), and [`examples/html_report.py`](examples/html_report.py).
+
 `results` is a dict with the following keys:
 
 | key | type | description |
 |-----|------|-------------|
+| `summary` | `dict[str, float]` | Raw numeric summary values |
 | `metrics` | `pl.DataFrame` | Summary metrics table |
 | `drawdowns` | `pl.DataFrame` | Top-5 drawdown periods |
 | `dow_stats` | `pl.DataFrame` | Day-of-week statistics |
-| `figures` | `dict[str, Figure]` | All matplotlib figures |
+| `figures` | `dict[str, Figure]` | All 8 matplotlib figures |
 
 ## With a benchmark
 
@@ -115,9 +154,13 @@ katsustats.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="re
 html_str = katsustats.reports.html(pnl, title="My Strategy")
 ```
 
-The report includes headline metric cards, performance tables, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
+The report includes headline metric cards, performance tables, period performance, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
+
+When a benchmark is provided, the HTML report also includes regime analysis.
 
 ## Using individual modules
+
+You can also call the lower-level APIs directly:
 
 ```python
 import katsustats
@@ -165,5 +208,11 @@ katsustats.plots.plot_dow_returns(pnl)
 | Best / Worst Day | Largest single-day gain / loss |
 | Avg Win / Avg Loss | Mean return on winning / losing days |
 | Daily VaR (95%) | 5th-percentile daily return |
+| CVaR (95%) | Mean return in the worst 5% tail |
 | Recovery Factor | Total return / \|Max Drawdown\| |
 | Skewness / Kurtosis | Distribution shape statistics |
+| Best / Worst Month | Largest / smallest monthly return |
+| Best / Worst Year | Largest / smallest yearly return |
+| Positive Months / Years | Share of profitable months / years |
+
+When a benchmark is provided, `katsustats` also reports **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
