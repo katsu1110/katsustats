@@ -376,14 +376,13 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     """
     df = ensure_polars(df)
     r = _to_returns(df)
-    dates = df.get_column("date")
+    dates = df.get_column("date").to_list()
     cumval = _cumulative_value(r)
     running_max = cumval.cum_max()
     dd = (cumval - running_max) / running_max
 
     # Identify drawdown periods (contiguous blocks where dd < 0)
     dd_np = dd.to_numpy()
-    dates_np = dates.to_numpy()
     n = len(dd_np)
 
     periods: list[dict] = []
@@ -401,9 +400,9 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
             recovery_idx = i if i < n else None
             periods.append(
                 {
-                    "start": dates_np[start_idx].item(),
-                    "trough": dates_np[trough_idx].item(),
-                    "recovery": dates_np[recovery_idx].item()
+                    "start": dates[start_idx],
+                    "trough": dates[trough_idx],
+                    "recovery": dates[recovery_idx]
                     if recovery_idx is not None
                     else None,
                     "max_dd": min_dd,
