@@ -21,21 +21,21 @@ Highlights:
 
 ### Cumulative returns
 
-![Cumulative returns preview](img/cumulative_returns.png)
+![Cumulative returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/cumulative_returns.png)
 
 ### Additional charts
 
 | Drawdowns | Monthly returns |
 |-----------|-----------------|
-| ![Drawdown preview](img/drawdowns.png) | ![Monthly returns preview](img/monthly_returns.png) |
+| ![Drawdown preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/drawdowns.png) | ![Monthly returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/monthly_returns.png) |
 
 | Yearly returns | Rolling Sharpe |
 |----------------|----------------|
-| ![Yearly returns preview](img/yearly_returns.png) | ![Rolling Sharpe preview](img/rolling_sharpe.png) |
+| ![Yearly returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/yearly_returns.png) | ![Rolling Sharpe preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/rolling_sharpe.png) |
 
 | Rolling volatility | Day-of-week returns |
 |--------------------|---------------------|
-| ![Rolling volatility preview](img/rolling_vol.png) | ![Day-of-week preview](img/dow.png) |
+| ![Rolling volatility preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/rolling_vol.png) | ![Day-of-week preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/dow.png) |
 
 # How to use
 
@@ -70,8 +70,11 @@ When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
 start of processing.
 
 If `date` is datetime-like, it is normalized to `pl.Date` before analysis.
-If multiple rows share the same `date`, `katsustats` compounds those same-day
-`pnl` values into one daily return, emits a warning, and continues.
+
+After normalization, each `date` must appear exactly once.
+
+If your input has multiple rows for the same day, pre-aggregate them into a
+single daily return before calling `katsustats`.
 
 ## Basic usage
 
