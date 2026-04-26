@@ -34,8 +34,6 @@ _COLORS = {
     "bg": "#FAFAFA",
 }
 
-_DOW_COLORS = ["#E53935", "#FB8C00", "#FDD835", "#43A047", "#1E88E5"]  # Mon-Fri
-
 _HEATMAP_CMAP = LinearSegmentedColormap.from_list(
     "katsustats_diverging",
     [_COLORS["negative"], "#ffffff", _COLORS["positive"]],
@@ -64,7 +62,12 @@ def _add_title(ax, fig, title: str, subtitle: str = ""):
 
 
 def _pct_formatter(x, _):
-    return f"{x:.0%}" if abs(x) < 1 else f"{x:.1%}"
+    a = abs(x)
+    if a >= 0.1:
+        return f"{x:.0%}"
+    if a >= 0.01:
+        return f"{x:.1%}"
+    return f"{x:.2%}"
 
 
 def _align_to_common_dates(
@@ -711,7 +714,7 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     bars2 = ax2.bar(
         names,
         wr,
-        color=_DOW_COLORS[: len(names)],
+        color=_COLORS["strategy"],
         alpha=0.85,
         edgecolor="white",
         linewidth=0.5,

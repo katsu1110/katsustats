@@ -390,9 +390,9 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
             recovery_idx = i if i < n else None
             periods.append(
                 {
-                    "start": dates_np[start_idx],
-                    "trough": dates_np[trough_idx],
-                    "recovery": dates_np[recovery_idx]
+                    "start": dates_np[start_idx].item(),
+                    "trough": dates_np[trough_idx].item(),
+                    "recovery": dates_np[recovery_idx].item()
                     if recovery_idx is not None
                     else None,
                     "max_dd": min_dd,
@@ -417,7 +417,16 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
             }
         )
 
-    result = pl.DataFrame(periods)
+    result = pl.DataFrame(
+        {
+            "start": pl.Series([p["start"] for p in periods], dtype=pl.Date),
+            "trough": pl.Series([p["trough"] for p in periods], dtype=pl.Date),
+            "recovery": pl.Series([p["recovery"] for p in periods], dtype=pl.Date),
+            "max_dd": [p["max_dd"] for p in periods],
+            "drawdown_days": [p["drawdown_days"] for p in periods],
+            "recovery_days": [p["recovery_days"] for p in periods],
+        }
+    )
     result = result.sort("max_dd").head(top_n)
     return result
 

@@ -101,6 +101,19 @@ class TestFull:
         captured = capsys.readouterr()
         assert len(captured.out) > 0
 
+    def test_stdout_no_raw_floats_in_drawdown_table(self, sample_df, capsys):
+        reports.full(sample_df, show=False, verbose=True)
+        out = capsys.readouterr().out
+        # raw nanosecond timestamps (1.7e18) or unformatted floats must not appear
+        assert "e+" not in out
+        assert "e-" not in out
+
+    def test_stdout_pct_columns_formatted_in_dow_table(self, sample_df, capsys):
+        reports.full(sample_df, show=False, verbose=True)
+        out = capsys.readouterr().out
+        # Day-of-Week section must contain formatted percentages
+        assert "%" in out
+
 
 # ---------------------------------------------------------------------------
 # reports.html

@@ -344,6 +344,13 @@ class TestDrawdownDetails:
             vals = dd.get_column("recovery_days").to_list()
             assert all(v is None or v >= 0 for v in vals)
 
+    def test_date_columns_are_date_dtype(self, sample_df):
+        dd = stats.drawdown_details(sample_df)
+        if dd.height > 0:
+            assert dd.schema["start"] == pl.Date
+            assert dd.schema["trough"] == pl.Date
+            assert dd.schema["recovery"] == pl.Date
+
 
 class TestDayOfWeekStats:
     def test_returns_dataframe(self, sample_df):

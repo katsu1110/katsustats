@@ -9,6 +9,7 @@ Primary entry points:
 from __future__ import annotations
 
 import base64
+import datetime as _dt
 import io
 import math
 
@@ -34,7 +35,7 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
     for col in cols:
         max_w = len(col)
         for val in data[col]:
-            max_w = max(max_w, len(str(val)) if val is not None else 4)
+            max_w = max(max_w, len(_format_cell(col, val)))
         widths[col] = max_w + 2
 
     # Header
@@ -46,8 +47,7 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
     n_rows = len(data[cols[0]])
     for i in range(n_rows):
         row = "  ".join(
-            str(data[col][i] if data[col][i] is not None else "—").rjust(widths[col])
-            for col in cols
+            _format_cell(col, data[col][i]).rjust(widths[col]) for col in cols
         )
         print(row)
     print()
@@ -87,6 +87,8 @@ def _format_cell(col: str, val: object) -> str:
         return "—"
     if isinstance(val, float) and math.isnan(val):
         return "—"
+    if isinstance(val, (_dt.datetime, _dt.date)):
+        return val.isoformat()[:10]
     if col in _PCT_COLS:
         return f"{val:.2%}"
     if col in _INT_COLS:
