@@ -15,6 +15,19 @@ def _is_pandas_dataframe(obj: Any) -> bool:
     return type(obj).__module__.startswith("pandas")
 
 
+def _compound_by_date(df: pl.DataFrame) -> pl.DataFrame:
+    """Compound all rows with the same date into one daily return per date.
+
+    This is the core compounding helper shared by duplicate-date normalization
+    (``_compound_duplicate_dates``) and ``stats._daily_returns``.
+    """
+    return (
+        df.group_by("date")
+        .agg(((pl.col("pnl") + 1).product() - 1).alias("pnl"))
+        .sort("date")
+    )
+
+
 def _compound_duplicate_dates(df: pl.DataFrame, name: str) -> pl.DataFrame:
     """Compound duplicate same-date returns into one daily return per date."""
     if df.height == 0 or df.get_column("date").n_unique() == df.height:
@@ -28,11 +41,7 @@ def _compound_duplicate_dates(df: pl.DataFrame, name: str) -> pl.DataFrame:
         UserWarning,
         stacklevel=3,
     )
-    return (
-        df.group_by("date")
-        .agg(((pl.col("pnl") + 1).product() - 1).alias("pnl"))
-        .sort("date")
-    )
+    return _compound_by_date(df)
 
 
 def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
