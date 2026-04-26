@@ -995,3 +995,26 @@ class TestPeriodPerformance:
         strat = dict(zip(result["period"].to_list(), result["strategy"].to_list()))
         assert strat["5Y"] == "—"
         assert strat["SI"] != "—"
+
+    def test_accepts_pandas_datetime_inputs(self):
+        from datetime import datetime, timedelta
+
+        import pandas as pd
+
+        start = datetime(2024, 1, 1)
+        dates = [start + timedelta(days=i) for i in range(400)]
+        df = pd.DataFrame({"date": dates, "pnl": [0.001] * 400})
+        base_df = pd.DataFrame({"date": dates, "pnl": [0.0005] * 400})
+
+        result = stats.period_performance(df, base_df)
+
+        assert result.columns == ["period", "strategy", "benchmark"]
+        assert result.get_column("period").to_list() == [
+            "MTD",
+            "QTD",
+            "YTD",
+            "1Y",
+            "3Y",
+            "5Y",
+            "SI",
+        ]

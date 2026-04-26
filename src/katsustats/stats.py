@@ -940,10 +940,13 @@ def period_performance_raw(
     Strategy and benchmark are aligned to common dates before computing so
     both columns in the table always reflect the same date range.
     """
-    df = ensure_polars(df)
-    df = df.sort("date")
+    df = ensure_polars(df).with_columns(pl.col("date").cast(pl.Date)).sort("date")
     if base_df is not None:
-        base_df = ensure_polars(base_df, name="base_df").sort("date")
+        base_df = (
+            ensure_polars(base_df, name="base_df")
+            .with_columns(pl.col("date").cast(pl.Date))
+            .sort("date")
+        )
         # Align to common dates so strategy and benchmark use the same anchor.
         joined = df.join(
             base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
