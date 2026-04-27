@@ -45,7 +45,7 @@ Repository = "https://github.com/katsu1110/katsustats"
 Issues = "https://github.com/katsu1110/katsustats/issues"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.4", "pandas>=2.2.3"]
+dev = ["pytest>=8.0", "ruff>=0.4", "pandas>=2.2.3", "pre-commit>=3.0"]
 
 [tool.ruff]
 line-length = 88
