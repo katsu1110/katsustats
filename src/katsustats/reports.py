@@ -2,8 +2,8 @@
 katsustats.reports — Report generation combining metrics and plots.
 
 Primary entry points:
-    katsustats.reports.full(pnl, base_pnl)
-    katsustats.reports.html(pnl, base_pnl, output="report.html")
+    katsustats.reports.full(returns, benchmark)
+    katsustats.reports.html(returns, benchmark, output="report.html")
 """
 
 from __future__ import annotations
@@ -349,8 +349,8 @@ _HTML_TEMPLATE = """\
 
 
 def full(
-    pnl: DataFrameLike,
-    base_pnl: DataFrameLike | None = None,
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
     figsize_main: tuple = (12, 5),
@@ -362,8 +362,8 @@ def full(
     Generate a full backtest report with metrics and plots.
 
     Args:
-        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns (daily returns).
-        base_pnl: Optional benchmark DataFrame with same schema.
+        returns: Polars or pandas DataFrame with ["date", "returns"] columns (daily returns).
+        benchmark: Optional benchmark DataFrame with same schema.
         rf: Risk-free rate (annualized, default 0.0).
         periods: Trading days per year (default 252).
         figsize_main: Figure size for main charts.
@@ -375,41 +375,41 @@ def full(
         dict with keys: "metrics", "drawdowns", "dow_stats", "figures"
     """
     # Validate inputs
-    pnl = ensure_polars(pnl, name="pnl")
-    assert "date" in pnl.columns, "pnl must have a 'date' column"
-    assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
-    if base_pnl is not None:
-        base_pnl = ensure_polars(base_pnl, name="base_pnl")
-        assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
-        assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
+    returns = ensure_polars(returns, name="returns")
+    assert "date" in returns.columns, "returns must have a 'date' column"
+    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    if benchmark is not None:
+        benchmark = ensure_polars(benchmark, name="benchmark")
+        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
+        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
 
     # Sort by date after normalization.
     # ensure_polars() already compounds duplicate same-date rows with a warning,
     # so this uniqueness check is a defensive sanity check.
-    pnl = pnl.sort("date")
-    assert pnl["date"].n_unique() == pnl.height, (
-        "pnl dates are expected to be unique after ensure_polars() normalization "
+    returns = returns.sort("date")
+    assert returns["date"].n_unique() == returns.height, (
+        "returns dates are expected to be unique after ensure_polars() normalization "
         "and compounding of duplicate same-date rows; if duplicates still exist, "
         "this indicates an unexpected post-normalization state or a bug. "
         "Please report this issue if it persists."
     )
-    if base_pnl is not None:
-        base_pnl = base_pnl.sort("date")
+    if benchmark is not None:
+        benchmark = benchmark.sort("date")
 
     # ── 1. Metrics Summary ──────────────────────────────────────────
-    summary = stats.summary_metrics_raw(pnl, base_pnl, rf, periods)
-    metrics = stats.summary_metrics(pnl, base_pnl, rf, periods)
+    summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
+    metrics = stats.summary_metrics(returns, benchmark, rf, periods)
     if verbose:
         _print_df(metrics, "Performance Metrics")
-        _print_df(stats.period_performance(pnl, base_pnl), "Period Performance")
+        _print_df(stats.period_performance(returns, benchmark), "Period Performance")
 
     # ── 2. Top Drawdowns ────────────────────────────────────────────
-    dd = stats.drawdown_details(pnl)
+    dd = stats.drawdown_details(returns)
     if verbose and dd.height > 0:
         _print_df(dd, "Top 5 Drawdowns")
 
     # ── 3. Day-of-Week Stats ────────────────────────────────────────
-    dow = stats.day_of_week_stats(pnl)
+    dow = stats.day_of_week_stats(returns)
     if verbose:
         _print_df(dow, "Day-of-Week Statistics")
 
@@ -425,28 +425,29 @@ def full(
 
     _handle_fig(
         "cumulative_returns",
-        plots.plot_cumulative_returns(pnl, base_pnl, figsize=figsize_main),
+        plots.plot_cumulative_returns(returns, benchmark, figsize=figsize_main),
     )
-    _handle_fig("drawdown", plots.plot_drawdown(pnl, figsize=figsize_small))
+    _handle_fig("drawdown", plots.plot_drawdown(returns, figsize=figsize_small))
     _handle_fig(
-        "monthly_heatmap", plots.plot_monthly_heatmap(pnl, figsize=figsize_main)
+        "monthly_heatmap", plots.plot_monthly_heatmap(returns, figsize=figsize_main)
     )
     _handle_fig(
-        "yearly_returns", plots.plot_yearly_returns(pnl, base_pnl, figsize=figsize_main)
+        "yearly_returns",
+        plots.plot_yearly_returns(returns, benchmark, figsize=figsize_main),
     )
     _handle_fig(
         "distribution",
-        plots.plot_return_distribution(pnl, base_pnl, figsize=figsize_main),
+        plots.plot_return_distribution(returns, benchmark, figsize=figsize_main),
     )
     _handle_fig(
         "rolling_sharpe",
-        plots.plot_rolling_sharpe(pnl, base_pnl, figsize=figsize_small),
+        plots.plot_rolling_sharpe(returns, benchmark, figsize=figsize_small),
     )
     _handle_fig(
         "rolling_volatility",
-        plots.plot_rolling_volatility(pnl, base_pnl, figsize=figsize_small),
+        plots.plot_rolling_volatility(returns, benchmark, figsize=figsize_small),
     )
-    _handle_fig("dow_returns", plots.plot_dow_returns(pnl))
+    _handle_fig("dow_returns", plots.plot_dow_returns(returns))
 
     return {
         "summary": summary,
@@ -458,8 +459,8 @@ def full(
 
 
 def html(
-    pnl: DataFrameLike,
-    base_pnl: DataFrameLike | None = None,
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
     rf: float = 0.0,
     periods: int = 252,
     title: str = "Strategy",
@@ -469,8 +470,8 @@ def html(
     Generate a self-contained HTML backtest report.
 
     Args:
-        pnl: Polars or pandas DataFrame with ["date", "pnl"] columns (daily returns).
-        base_pnl: Optional benchmark DataFrame with same schema.
+        returns: Polars or pandas DataFrame with ["date", "returns"] columns (daily returns).
+        benchmark: Optional benchmark DataFrame with same schema.
         rf: Risk-free rate (annualized, default 0.0).
         periods: Trading days per year (default 252).
         title: Report title (default "Strategy").
@@ -483,14 +484,14 @@ def html(
     orig_backend = matplotlib.get_backend()
     plt.switch_backend("agg")
     try:
-        return _build_html(pnl, base_pnl, rf, periods, title, output)
+        return _build_html(returns, benchmark, rf, periods, title, output)
     finally:
         plt.switch_backend(orig_backend)
 
 
 def _build_html(
-    pnl: DataFrameLike,
-    base_pnl: DataFrameLike | None,
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None,
     rf: float,
     periods: int,
     title: str,
@@ -498,37 +499,37 @@ def _build_html(
 ) -> str:
     """Internal: build the HTML report string."""
     # Validate
-    pnl = ensure_polars(pnl, name="pnl")
-    assert "date" in pnl.columns, "pnl must have a 'date' column"
-    assert "pnl" in pnl.columns, "pnl must have a 'pnl' column"
-    if base_pnl is not None:
-        base_pnl = ensure_polars(base_pnl, name="base_pnl")
-        assert "date" in base_pnl.columns, "base_pnl must have a 'date' column"
-        assert "pnl" in base_pnl.columns, "base_pnl must have a 'pnl' column"
+    returns = ensure_polars(returns, name="returns")
+    assert "date" in returns.columns, "returns must have a 'date' column"
+    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    if benchmark is not None:
+        benchmark = ensure_polars(benchmark, name="benchmark")
+        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
+        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
 
     # Sort by date after normalization.
     # ensure_polars() already compounds duplicate same-date rows with a warning,
     # so this uniqueness check is a defensive sanity check.
-    pnl = pnl.sort("date")
-    assert pnl["date"].n_unique() == pnl.height, (
-        "Expected `pnl` to have unique dates after `ensure_polars()` "
+    returns = returns.sort("date")
+    assert returns["date"].n_unique() == returns.height, (
+        "Expected `returns` to have unique dates after `ensure_polars()` "
         "normalization/compounding. If this fails, check the input for "
         "duplicate same-date rows or investigate whether normalization "
         "did not run as expected."
     )
-    if base_pnl is not None:
-        base_pnl = base_pnl.sort("date")
+    if benchmark is not None:
+        benchmark = benchmark.sort("date")
 
     # ── Metadata ────────────────────────────────────────────────────
-    dates = pnl.get_column("date")
+    dates = returns.get_column("date")
     date_start = str(dates.min())
     date_end = str(dates.max())
     n_days = len(dates)
     date_range = f"{date_start} → {date_end}"
 
     # ── Metrics ─────────────────────────────────────────────────────
-    summary = stats.summary_metrics_raw(pnl, base_pnl, rf, periods)
-    metrics_df = stats.summary_metrics(pnl, base_pnl, rf, periods)
+    summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
+    metrics_df = stats.summary_metrics(returns, benchmark, rf, periods)
     metrics_table = _df_to_html_table(metrics_df)
 
     # ── Headline cards ──────────────────────────────────────────────
@@ -557,7 +558,7 @@ def _build_html(
 
     # ── Hero chart: Cumulative Returns (full-width) ─────────────────
     hero_b64 = _fig_to_base64(
-        plots.plot_cumulative_returns(pnl, base_pnl, figsize=(12, 5))
+        plots.plot_cumulative_returns(returns, benchmark, figsize=(12, 5))
     )
     hero_chart = (
         f'<div class="section">'
@@ -569,14 +570,16 @@ def _build_html(
 
     # ── Key Performance block (2-column) ────────────────────────────
     # Left: summary metrics table  |  Right: period table + compact charts
-    period_df = stats.period_performance(pnl, base_pnl)
+    period_df = stats.period_performance(returns, benchmark)
     period_html = _df_to_html_table(period_df)
 
     yearly_b64 = _fig_to_base64(
-        plots.plot_yearly_returns(pnl, base_pnl, figsize=(8, 3))
+        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 3))
     )
-    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(pnl, figsize=(8, 3)))
-    dd_periods_b64 = _fig_to_base64(plots.plot_drawdown_periods(pnl, figsize=(8, 3)))
+    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(8, 3)))
+    dd_periods_b64 = _fig_to_base64(
+        plots.plot_drawdown_periods(returns, figsize=(8, 3))
+    )
 
     key_performance_block = (
         f'<div class="section">'
@@ -600,7 +603,7 @@ def _build_html(
     )
 
     # ── Top Drawdowns (full-width) ───────────────────────────────────
-    dd_df = stats.drawdown_details(pnl)
+    dd_df = stats.drawdown_details(returns)
     if dd_df.height > 0:
         dd_table = _df_to_html_table(dd_df)
         top_drawdowns_section = (
@@ -618,19 +621,19 @@ def _build_html(
             f"</div>"
         )
 
-    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(pnl, figsize=(8, 4)))
+    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 4)))
     dist_b64 = _fig_to_base64(
-        plots.plot_return_distribution(pnl, base_pnl, figsize=(8, 4))
+        plots.plot_return_distribution(returns, benchmark, figsize=(8, 4))
     )
     sharpe_b64 = _fig_to_base64(
-        plots.plot_rolling_sharpe(pnl, base_pnl, figsize=(8, 4))
+        plots.plot_rolling_sharpe(returns, benchmark, figsize=(8, 4))
     )
     vol_b64 = _fig_to_base64(
-        plots.plot_rolling_volatility(pnl, base_pnl, figsize=(8, 4))
+        plots.plot_rolling_volatility(returns, benchmark, figsize=(8, 4))
     )
-    dow_df = stats.day_of_week_stats(pnl)
+    dow_df = stats.day_of_week_stats(returns)
     dow_table_html = _df_to_html_table(dow_df)
-    dow_chart_b64 = _fig_to_base64(plots.plot_dow_returns(pnl, figsize=(8, 4)))
+    dow_chart_b64 = _fig_to_base64(plots.plot_dow_returns(returns, figsize=(8, 4)))
 
     charts_grid_block = (
         f'<div class="charts-grid">'
@@ -644,8 +647,8 @@ def _build_html(
     )
 
     # ── Regime Analysis (full-width, benchmark only) ─────────────────
-    if base_pnl is not None:
-        regime_df = stats.regime_stats(pnl, base_pnl, periods=periods)
+    if benchmark is not None:
+        regime_df = stats.regime_stats(returns, benchmark, periods=periods)
         regime_df = regime_df.filter(pl.col("n_days") > 0)
         if regime_df.height > 0:
             regime_table = _df_to_html_table(regime_df)

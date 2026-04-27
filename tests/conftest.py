@@ -93,7 +93,7 @@ _BENCH_RETURNS = [
 @pytest.fixture
 def sample_df() -> pl.DataFrame:
     """20 weekdays, mix of positive and negative returns."""
-    return pl.DataFrame({"date": _WEEKDAYS, "pnl": _RETURNS}).with_columns(
+    return pl.DataFrame({"date": _WEEKDAYS, "returns": _RETURNS}).with_columns(
         pl.col("date").cast(pl.Date)
     )
 
@@ -101,7 +101,7 @@ def sample_df() -> pl.DataFrame:
 @pytest.fixture
 def benchmark_df() -> pl.DataFrame:
     """20 weekdays, benchmark returns."""
-    return pl.DataFrame({"date": _WEEKDAYS, "pnl": _BENCH_RETURNS}).with_columns(
+    return pl.DataFrame({"date": _WEEKDAYS, "returns": _BENCH_RETURNS}).with_columns(
         pl.col("date").cast(pl.Date)
     )
 
@@ -109,13 +109,13 @@ def benchmark_df() -> pl.DataFrame:
 @pytest.fixture
 def sample_pandas_df() -> pd.DataFrame:
     """20 weekdays, mix of positive and negative returns, as pandas."""
-    return pd.DataFrame({"date": _WEEKDAYS, "pnl": _RETURNS})
+    return pd.DataFrame({"date": _WEEKDAYS, "returns": _RETURNS})
 
 
 @pytest.fixture
 def benchmark_pandas_df() -> pd.DataFrame:
     """20 weekdays, benchmark returns, as pandas."""
-    return pd.DataFrame({"date": _WEEKDAYS, "pnl": _BENCH_RETURNS})
+    return pd.DataFrame({"date": _WEEKDAYS, "returns": _BENCH_RETURNS})
 
 
 @pytest.fixture
@@ -126,9 +126,9 @@ def grouped_sample_pandas_df() -> pd.DataFrame:
     for date, ret in zip(_WEEKDAYS, _RETURNS):
         rows.extend(
             [
-                {"date": date, "group": groups[0], "pnl": ret * 0.5},
-                {"date": date, "group": groups[1], "pnl": ret * 0.3},
-                {"date": date, "group": groups[2], "pnl": ret * 0.2},
+                {"date": date, "group": groups[0], "returns": ret * 0.5},
+                {"date": date, "group": groups[1], "returns": ret * 0.3},
+                {"date": date, "group": groups[2], "returns": ret * 0.2},
             ]
         )
 
@@ -139,7 +139,10 @@ def grouped_sample_pandas_df() -> pd.DataFrame:
 def empty_df() -> pl.DataFrame:
     """0-row DataFrame with correct schema."""
     return pl.DataFrame(
-        {"date": pl.Series([], dtype=pl.Date), "pnl": pl.Series([], dtype=pl.Float64)}
+        {
+            "date": pl.Series([], dtype=pl.Date),
+            "returns": pl.Series([], dtype=pl.Float64),
+        }
     )
 
 
@@ -147,7 +150,7 @@ def empty_df() -> pl.DataFrame:
 def single_row_df() -> pl.DataFrame:
     """1-row DataFrame."""
     return pl.DataFrame(
-        {"date": [datetime.date(2023, 1, 2)], "pnl": [0.01]}
+        {"date": [datetime.date(2023, 1, 2)], "returns": [0.01]}
     ).with_columns(pl.col("date").cast(pl.Date))
 
 
@@ -155,7 +158,7 @@ def single_row_df() -> pl.DataFrame:
 def all_positive_df() -> pl.DataFrame:
     """10 weekdays, all positive returns."""
     return pl.DataFrame(
-        {"date": _WEEKDAYS[:10], "pnl": [0.005, 0.010, 0.003, 0.007, 0.002] * 2}
+        {"date": _WEEKDAYS[:10], "returns": [0.005, 0.010, 0.003, 0.007, 0.002] * 2}
     ).with_columns(pl.col("date").cast(pl.Date))
 
 
@@ -163,5 +166,8 @@ def all_positive_df() -> pl.DataFrame:
 def all_negative_df() -> pl.DataFrame:
     """10 weekdays, all negative returns."""
     return pl.DataFrame(
-        {"date": _WEEKDAYS[:10], "pnl": [-0.005, -0.010, -0.003, -0.007, -0.002] * 2}
+        {
+            "date": _WEEKDAYS[:10],
+            "returns": [-0.005, -0.010, -0.003, -0.007, -0.002] * 2,
+        }
     ).with_columns(pl.col("date").cast(pl.Date))

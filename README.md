@@ -8,7 +8,7 @@
 
 `katsustats` is a Polars-powered analytics and reporting library for daily return series, inspired by [quantstats](https://github.com/ranaroussi/quantstats).
 
-Pass a DataFrame with `date` and `pnl`, and get summary metrics, drawdown analysis, key metrics with visualizations, and a self-contained HTML report.
+Pass a DataFrame with `date` and `returns`, and get summary metrics, drawdown analysis, key metrics with visualizations, and a self-contained HTML report.
 
 Highlights:
 
@@ -64,7 +64,7 @@ with two required columns:
 | column | type | description |
 |--------|------|-------------|
 | `date` | date-like | Trading date |
-| `pnl`  | float-like | Daily return (e.g. `0.01` = +1%) |
+| `returns`  | float-like | Daily return (e.g. `0.01` = +1%) |
 
 When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
 start of processing.
@@ -72,7 +72,7 @@ start of processing.
 If `date` is datetime-like, it is normalized to `pl.Date` before analysis.
 
 If multiple rows share the same `date`, `katsustats` compounds those same-day
-`pnl` values into one daily return, emits a warning, and continues.
+`returns` values into one daily return, emits a warning, and continues.
 
 ## Basic usage
 
@@ -81,13 +81,13 @@ import polars as pl
 import katsustats
 
 # Build your return series
-pnl = pl.DataFrame({
+returns = pl.DataFrame({
     "date": pl.date_range(pl.date(2020, 1, 1), pl.date(2023, 12, 31), "1d", eager=True),
-    "pnl": your_daily_returns,   # list / numpy array of floats
+    "returns": your_daily_returns,   # list / numpy array of floats
 })
 
 # Generate the full report (prints metrics + shows all plots)
-results = katsustats.reports.full(pnl)
+results = katsustats.reports.full(returns)
 ```
 
 Pandas inputs work too:
@@ -95,12 +95,12 @@ Pandas inputs work too:
 ```python
 import pandas as pd
 
-pnl = pd.DataFrame({
+returns = pd.DataFrame({
     "date": dates,
-    "pnl": your_daily_returns,
+    "returns": your_daily_returns,
 })
 
-results = katsustats.reports.full(pnl)
+results = katsustats.reports.full(returns)
 ```
 
 See also the runnable examples in [`examples/quickstart.py`](examples/quickstart.py), [`examples/with_benchmark.py`](examples/with_benchmark.py), and [`examples/html_report.py`](examples/html_report.py).
@@ -120,10 +120,10 @@ See also the runnable examples in [`examples/quickstart.py`](examples/quickstart
 ```python
 benchmark = pl.DataFrame({
     "date": pl.date_range(pl.date(2020, 1, 1), pl.date(2023, 12, 31), "1d", eager=True),
-    "pnl": benchmark_daily_returns,
+    "returns": benchmark_daily_returns,
 })
 
-results = katsustats.reports.full(pnl, base_pnl=benchmark)
+results = katsustats.reports.full(returns, benchmark=benchmark)
 ```
 
 When a benchmark is provided, the metrics table also includes **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
@@ -132,8 +132,8 @@ When a benchmark is provided, the metrics table also includes **Alpha**, **Beta*
 
 ```python
 results = katsustats.reports.full(
-    pnl,
-    base_pnl=benchmark,
+    returns,
+    benchmark=benchmark,
     rf=0.04,          # annualized risk-free rate (default 0.0)
     periods=252,      # trading days per year (default 252)
     show=False,       # suppress inline plot display
@@ -146,10 +146,10 @@ Generate a self-contained HTML report (similar to `qs.reports.html()`):
 
 ```python
 # Save to file
-katsustats.reports.html(pnl, base_pnl=benchmark, title="My Strategy", output="report.html")
+katsustats.reports.html(returns, benchmark=benchmark, title="My Strategy", output="report.html")
 
 # Or get HTML string
-html_str = katsustats.reports.html(pnl, title="My Strategy")
+html_str = katsustats.reports.html(returns, title="My Strategy")
 ```
 
 The report includes headline metric cards, performance tables, period performance, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
@@ -164,30 +164,30 @@ You can also call the lower-level APIs directly:
 import katsustats
 
 # --- Stats ---
-katsustats.stats.total_return(pnl)
-katsustats.stats.cagr(pnl)
-katsustats.stats.sharpe(pnl, rf=0.0)
-katsustats.stats.sortino(pnl)
-katsustats.stats.max_drawdown(pnl)
-katsustats.stats.calmar(pnl)
-katsustats.stats.volatility(pnl)
-katsustats.stats.win_rate(pnl)
-katsustats.stats.profit_factor(pnl)
-katsustats.stats.value_at_risk(pnl, alpha=0.05)
+katsustats.stats.total_return(returns)
+katsustats.stats.cagr(returns)
+katsustats.stats.sharpe(returns, rf=0.0)
+katsustats.stats.sortino(returns)
+katsustats.stats.max_drawdown(returns)
+katsustats.stats.calmar(returns)
+katsustats.stats.volatility(returns)
+katsustats.stats.win_rate(returns)
+katsustats.stats.profit_factor(returns)
+katsustats.stats.value_at_risk(returns, alpha=0.05)
 
-katsustats.stats.drawdown_details(pnl, top_n=5)      # pl.DataFrame
-katsustats.stats.day_of_week_stats(pnl)              # pl.DataFrame
-katsustats.stats.summary_metrics(pnl, base_pnl)     # pl.DataFrame
+katsustats.stats.drawdown_details(returns, top_n=5)      # pl.DataFrame
+katsustats.stats.day_of_week_stats(returns)              # pl.DataFrame
+katsustats.stats.summary_metrics(returns, benchmark)     # pl.DataFrame
 
 # --- Plots ---
-katsustats.plots.plot_cumulative_returns(pnl, base_pnl)
-katsustats.plots.plot_drawdown(pnl)
-katsustats.plots.plot_monthly_heatmap(pnl)
-katsustats.plots.plot_yearly_returns(pnl, base_pnl)
-katsustats.plots.plot_return_distribution(pnl, base_pnl)
-katsustats.plots.plot_rolling_sharpe(pnl, base_pnl)
-katsustats.plots.plot_rolling_volatility(pnl, base_pnl)
-katsustats.plots.plot_dow_returns(pnl)
+katsustats.plots.plot_cumulative_returns(returns, benchmark)
+katsustats.plots.plot_drawdown(returns)
+katsustats.plots.plot_monthly_heatmap(returns)
+katsustats.plots.plot_yearly_returns(returns, benchmark)
+katsustats.plots.plot_return_distribution(returns, benchmark)
+katsustats.plots.plot_rolling_sharpe(returns, benchmark)
+katsustats.plots.plot_rolling_volatility(returns, benchmark)
+katsustats.plots.plot_dow_returns(returns)
 ```
 
 ## Metrics produced

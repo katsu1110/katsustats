@@ -59,21 +59,21 @@ class TestFull:
             assert isinstance(fig, matplotlib.figure.Figure)
 
     def test_with_benchmark(self, sample_df, benchmark_df):
-        result = reports.full(sample_df, base_pnl=benchmark_df, show=False)
+        result = reports.full(sample_df, benchmark=benchmark_df, show=False)
         assert "metrics" in result
         assert "alpha" in result["summary"]
         # Benchmark adds comparison rows
         assert result["metrics"].height > 17
 
-    def test_invalid_input_missing_pnl_column(self):
-        bad_df = pl.DataFrame({"date": ["2023-01-02"], "returns": [0.01]}).with_columns(
+    def test_invalid_input_missing_returns_column(self):
+        bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
     def test_invalid_input_missing_date_column(self):
-        bad_df = pl.DataFrame({"day": ["2023-01-02"], "pnl": [0.01]})
+        bad_df = pl.DataFrame({"day": ["2023-01-02"], "returns": [0.01]})
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
@@ -85,7 +85,7 @@ class TestFull:
         duplicate_dates_df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "pnl": [0.10, 0.20, -0.10],
+                "returns": [0.10, 0.20, -0.10],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 
@@ -100,7 +100,7 @@ class TestFull:
 
     def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
         result = reports.full(
-            sample_pandas_df, base_pnl=benchmark_pandas_df, show=False
+            sample_pandas_df, benchmark=benchmark_pandas_df, show=False
         )
         assert isinstance(result["metrics"], pl.DataFrame)
 
@@ -116,8 +116,8 @@ class TestFull:
 
         start = datetime(2024, 1, 1)
         dates = [start + timedelta(days=i) for i in range(20)]
-        pnl = [0.01, -0.005, 0.008, -0.012, 0.003] * 4
-        df = pd.DataFrame({"date": dates, "pnl": pnl})
+        returns = [0.01, -0.005, 0.008, -0.012, 0.003] * 4
+        df = pd.DataFrame({"date": dates, "returns": returns})
 
         result = reports.full(df, show=False, verbose=False)
 
@@ -172,7 +172,7 @@ class TestHtml:
         assert "My Strategy" in result
 
     def test_with_benchmark(self, sample_df, benchmark_df):
-        result = reports.html(sample_df, base_pnl=benchmark_df)
+        result = reports.html(sample_df, benchmark=benchmark_df)
         assert isinstance(result, str)
         assert "data:image/png;base64," in result
 
@@ -194,13 +194,13 @@ class TestHtml:
         n = 600
         dates = [date(2020, 1, 1) + timedelta(days=i) for i in range(n)]
         strat = pl.DataFrame(
-            {"date": dates, "pnl": rng.normal(0.0008, 0.012, n).tolist()}
+            {"date": dates, "returns": rng.normal(0.0008, 0.012, n).tolist()}
         ).with_columns(pl.col("date").cast(pl.Date))
         bench = pl.DataFrame(
-            {"date": dates, "pnl": rng.normal(0.0004, 0.009, n).tolist()}
+            {"date": dates, "returns": rng.normal(0.0004, 0.009, n).tolist()}
         ).with_columns(pl.col("date").cast(pl.Date))
 
-        result = reports.html(strat, base_pnl=bench)
+        result = reports.html(strat, benchmark=bench)
         assert "Regime Analysis" in result
         assert any(
             label in result
@@ -226,7 +226,7 @@ class TestHtml:
         assert set(tmp_path.iterdir()) == initial_files
 
     def test_invalid_input_raises(self):
-        bad_df = pl.DataFrame({"date": ["2023-01-02"], "returns": [0.01]}).with_columns(
+        bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         with pytest.raises(AssertionError):
@@ -240,7 +240,7 @@ class TestHtml:
         duplicate_dates_df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "pnl": [0.10, 0.20, -0.10],
+                "returns": [0.10, 0.20, -0.10],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 
@@ -251,6 +251,6 @@ class TestHtml:
         assert isinstance(result, str)
         assert result == reports.html(
             pl.DataFrame(
-                {"date": ["2023-01-02", "2023-01-03"], "pnl": [0.32, -0.10]}
+                {"date": ["2023-01-02", "2023-01-03"], "returns": [0.32, -0.10]}
             ).with_columns(pl.col("date").cast(pl.Date))
         )

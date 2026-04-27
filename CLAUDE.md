@@ -2,7 +2,7 @@
 
 ## Project overview
 
-katsustats is a Python library for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "pnl"]` columns and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML reports.
+katsustats is a Python library for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "returns"]` columns and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML reports.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Three-module functional design in `src/katsustats/`:
 - `plots.py` — Matplotlib chart generation (8 chart types)
 - `reports.py` — Orchestration: `full()` for dict output, `html()` for HTML report
 
-No classes. All functions expect a Polars DataFrame with `date: pl.Date` and `pnl: pl.Float64` columns.
+No classes. All functions expect a Polars DataFrame with `date: pl.Date` and `returns: pl.Float64` columns.
 
 ## Setup
 

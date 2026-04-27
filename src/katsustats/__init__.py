@@ -3,8 +3,8 @@ katsustats — A modernized backtest report module powered by Polars.
 
 Usage:
     import katsustats
-    katsustats.reports.full(pnl, base_pnl)              # console + plots
-    katsustats.reports.html(pnl, output="report.html")   # HTML report
+    katsustats.reports.full(returns, benchmark)              # console + plots
+    katsustats.reports.html(returns, output="report.html")   # HTML report
 
     # Flat imports also work:
     from katsustats import sharpe, plot_cumulative_returns, html

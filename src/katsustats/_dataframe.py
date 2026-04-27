@@ -23,7 +23,7 @@ def _compound_by_date(df: pl.DataFrame) -> pl.DataFrame:
     """
     return (
         df.group_by("date")
-        .agg(((pl.col("pnl") + 1).product() - 1).alias("pnl"))
+        .agg(((pl.col("returns") + 1).product() - 1).alias("returns"))
         .sort("date")
     )
 
@@ -35,7 +35,7 @@ def _compound_duplicate_dates(df: pl.DataFrame, name: str) -> pl.DataFrame:
 
     warnings.warn(
         (
-            f"{name} has duplicate dates; compounding same-date pnl values into "
+            f"{name} has duplicate dates; compounding same-date returns values into "
             "one daily return per date."
         ),
         UserWarning,
@@ -47,9 +47,9 @@ def _compound_duplicate_dates(df: pl.DataFrame, name: str) -> pl.DataFrame:
 def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     """Convert a pandas or Polars DataFrame to a Polars DataFrame.
 
-    Always returns a DataFrame with exactly the columns ``["date", "pnl"]``.
+    Always returns a DataFrame with exactly the columns ``["date", "returns"]``.
     Validates that the input has those columns, casts ``date`` to ``pl.Date``
-    if needed, and compounds same-date ``pnl`` rows into one daily return with
+    if needed, and compounds same-date ``returns`` rows into one daily return with
     a warning when duplicate dates are detected.
     """
     if isinstance(df, pl.DataFrame):
@@ -63,9 +63,9 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
         raise TypeError(
             f"{name} must be a Polars or pandas DataFrame, got {type(df).__name__}"
         )
-    missing = {"date", "pnl"} - set(polars_df.columns)
+    missing = {"date", "returns"} - set(polars_df.columns)
     assert not missing, f"{name} is missing columns: {missing}"
     if polars_df.schema["date"] != pl.Date:
         polars_df = polars_df.with_columns(pl.col("date").cast(pl.Date))
-    polars_df = polars_df.select(["date", "pnl"])
+    polars_df = polars_df.select(["date", "returns"])
     return _compound_duplicate_dates(polars_df, name)

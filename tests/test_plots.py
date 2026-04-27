@@ -57,7 +57,7 @@ class TestPlotCumulativeReturns:
         offset_bench = pl.DataFrame(
             {
                 "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
-                "pnl": [0.01, -0.01, 0.02],
+                "returns": [0.01, -0.01, 0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # Should not raise regardless of date overlap
@@ -151,7 +151,7 @@ class TestPlotEoyReturns:
             datetime.date(2022, 6, 1),
             datetime.date(2023, 6, 1),
         ]
-        df = pl.DataFrame({"date": dates, "pnl": [0.05, -0.03, 0.08]}).with_columns(
+        df = pl.DataFrame({"date": dates, "returns": [0.05, -0.03, 0.08]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         fig = plots.plot_eoy_returns(df)
@@ -164,7 +164,7 @@ class TestPlotEoyReturns:
 
         # Two rows in the same year: compounded = 1.1 * 1.1 - 1 = 0.21, not 0.20
         dates = [datetime.date(2023, 1, 2), datetime.date(2023, 6, 1)]
-        df = pl.DataFrame({"date": dates, "pnl": [0.1, 0.1]}).with_columns(
+        df = pl.DataFrame({"date": dates, "returns": [0.1, 0.1]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         fig = plots.plot_eoy_returns(df)
@@ -184,7 +184,7 @@ class TestPlotEoyReturns:
                     datetime.date(2021, 6, 1),
                     datetime.date(2023, 6, 1),
                 ],
-                "pnl": [0.05, 0.02, 0.08],
+                "returns": [0.05, 0.02, 0.08],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 
@@ -195,7 +195,7 @@ class TestPlotEoyReturns:
                     datetime.date(2022, 6, 1),
                     datetime.date(2023, 6, 1),
                 ],
-                "pnl": [0.01, -0.02, 0.03],
+                "returns": [0.01, -0.02, 0.03],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 

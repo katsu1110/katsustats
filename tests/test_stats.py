@@ -31,7 +31,7 @@ class TestTotalReturn:
     def test_known_value(self):
         # (1.1) * (0.9) - 1 = -0.01
         df = pl.DataFrame(
-            {"date": ["2023-01-02", "2023-01-03"], "pnl": [0.1, -0.1]}
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.1, -0.1]}
         ).with_columns(pl.col("date").cast(pl.Date))
         result = stats.total_return(df)
         assert abs(result - (-0.01)) < 1e-10
@@ -40,7 +40,7 @@ class TestTotalReturn:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "pnl": [0.10, -0.05, 0.02],
+                "returns": [0.10, -0.05, 0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 
@@ -85,7 +85,7 @@ class TestSharpe:
     def test_zero_std_returns_zero(self):
         # All identical returns → std=0 → sharpe=0
         df = pl.DataFrame(
-            {"date": ["2023-01-02", "2023-01-03"], "pnl": [0.01, 0.01]}
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.01, 0.01]}
         ).with_columns(pl.col("date").cast(pl.Date))
         assert stats.sharpe(df) == 0.0
 
@@ -118,7 +118,7 @@ class TestSortino:
                     "2023-01-05",
                     "2023-01-06",
                 ],
-                "pnl": [0.02, 0.01, 0.03, -0.01, -0.02],
+                "returns": [0.02, 0.01, 0.03, -0.01, -0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # clip upper=0: [0, 0, 0, -0.01, -0.02]
@@ -382,8 +382,8 @@ class TestDrawdownDetails:
 
         start = datetime(2024, 1, 1)
         dates = [start + timedelta(days=i) for i in range(8)]
-        pnl = [0.02, -0.01, -0.03, 0.01, 0.005, -0.02, 0.01, 0.015]
-        df = pd.DataFrame({"date": dates, "pnl": pnl})
+        returns = [0.02, -0.01, -0.03, 0.01, 0.005, -0.02, 0.01, 0.015]
+        df = pd.DataFrame({"date": dates, "returns": returns})
 
         dd = stats.drawdown_details(df)
 
@@ -488,8 +488,8 @@ class TestAlphaBeta:
         import numpy as np
 
         alpha, beta = stats.alpha_beta(sample_df, benchmark_df)
-        r = sample_df.get_column("pnl").to_numpy()
-        b = benchmark_df.get_column("pnl").to_numpy()
+        r = sample_df.get_column("returns").to_numpy()
+        b = benchmark_df.get_column("returns").to_numpy()
         cov = np.cov(r, b)
         beta_raw = cov[0, 1] / cov[1, 1]
         alpha_daily = float(np.mean(r) - beta_raw * np.mean(b))
@@ -530,13 +530,13 @@ class TestExcessReturn:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03", "2023-01-04"],
-                "pnl": [0.01, 0.02, -0.01],
+                "returns": [0.01, 0.02, -0.01],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         base = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03"],
-                "pnl": [0.01, 0.02],
+                "returns": [0.01, 0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # Inner join gives 2023-01-02 and 2023-01-03 only.
@@ -601,13 +601,13 @@ class TestRegimeStats:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
-                "pnl": [0.01, -0.01, 0.02, -0.02],
+                "returns": [0.01, -0.01, 0.02, -0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         base = pl.DataFrame(
             {
                 "date": ["2023-01-03", "2023-01-04", "2023-01-05"],
-                "pnl": [0.01, -0.03, 0.04],
+                "returns": [0.01, -0.03, 0.04],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
 
@@ -759,7 +759,7 @@ class TestConsecutiveWins:
                     "2023-01-05",
                     "2023-01-06",
                 ],
-                "pnl": [0.01, 0.02, -0.01, 0.03, 0.04],
+                "returns": [0.01, 0.02, -0.01, 0.03, 0.04],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # streak: 2 wins, then loss, then 2 wins → max is 2
@@ -792,7 +792,7 @@ class TestConsecutiveLosses:
                     "2023-01-05",
                     "2023-01-06",
                 ],
-                "pnl": [-0.01, -0.02, 0.01, -0.03, -0.04],
+                "returns": [-0.01, -0.02, 0.01, -0.03, -0.04],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         # streak: 2 losses, then win, then 2 losses → max is 2
@@ -819,7 +819,7 @@ class TestBestWorstMonth:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03", "2023-02-01"],
-                "pnl": [0.01, -0.01, 0.02],
+                "returns": [0.01, -0.01, 0.02],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         best = stats.best_month(df)
@@ -851,7 +851,7 @@ class TestBestWorstYear:
         df = pl.DataFrame(
             {
                 "date": ["2022-06-01", "2023-06-01"],
-                "pnl": [0.05, -0.03],
+                "returns": [0.05, -0.03],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         assert stats.best_year(df) == pytest.approx(0.05, abs=1e-10)
@@ -882,7 +882,7 @@ class TestExposure:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
-                "pnl": [0.01, 0.0, -0.02, 0.0],
+                "returns": [0.01, 0.0, -0.02, 0.0],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         assert stats.exposure(df) == pytest.approx(0.5, abs=1e-10)
@@ -891,7 +891,7 @@ class TestExposure:
         df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-03"],
-                "pnl": [0.0, 0.0],
+                "returns": [0.0, 0.0],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         assert stats.exposure(df) == 0.0
@@ -911,8 +911,8 @@ class TestPositiveMonthsPct:
         assert 0.0 <= val <= 1.0
 
     def test_empty_df_returns_nan(self):
-        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
-            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        df = pl.DataFrame({"date": [], "returns": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("returns").cast(pl.Float64)
         )
         assert math.isnan(stats.positive_months_pct(df))
 
@@ -920,7 +920,7 @@ class TestPositiveMonthsPct:
         from datetime import date, timedelta
 
         dates = [date(2023, 1, 1) + timedelta(days=i) for i in range(60)]
-        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 60}).with_columns(
+        df = pl.DataFrame({"date": dates, "returns": [0.001] * 60}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         assert stats.positive_months_pct(df) == 1.0
@@ -935,8 +935,8 @@ class TestPositiveYearsPct:
         assert 0.0 <= val <= 1.0
 
     def test_empty_df_returns_nan(self):
-        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
-            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        df = pl.DataFrame({"date": [], "returns": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("returns").cast(pl.Float64)
         )
         assert math.isnan(stats.positive_years_pct(df))
 
@@ -959,7 +959,7 @@ class TestPeriodPerformanceRaw:
         from datetime import date, timedelta
 
         dates = [date(2023, 1, 1) + timedelta(days=i) for i in range(30)]
-        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 30}).with_columns(
+        df = pl.DataFrame({"date": dates, "returns": [0.001] * 30}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         raw = stats.period_performance_raw(df)
@@ -976,7 +976,7 @@ class TestPeriodPerformanceRaw:
         df = pl.DataFrame(
             {
                 "date": [date(2023, 1, 2), date(2023, 1, 3), date(2023, 1, 4)],
-                "pnl": [0.01, 0.02, -0.005],
+                "returns": [0.01, 0.02, -0.005],
             }
         ).with_columns(pl.col("date").cast(pl.Date))
         raw = stats.period_performance_raw(df)
@@ -1016,21 +1016,21 @@ class TestPeriodPerformanceRaw:
             (1 + benchmark_session_returns[0]) * (1 + benchmark_session_returns[1])
         ) - 1
         intraday_df = pd.DataFrame(
-            {"date": intraday_dates, "pnl": strategy_session_returns * num_days}
+            {"date": intraday_dates, "returns": strategy_session_returns * num_days}
         )
         intraday_base_df = pd.DataFrame(
-            {"date": intraday_dates, "pnl": benchmark_session_returns * num_days}
+            {"date": intraday_dates, "returns": benchmark_session_returns * num_days}
         )
         daily_df = pd.DataFrame(
             {
                 "date": [day.date() for day in days],
-                "pnl": [daily_strategy_return] * num_days,
+                "returns": [daily_strategy_return] * num_days,
             }
         )
         daily_base_df = pd.DataFrame(
             {
                 "date": [day.date() for day in days],
-                "pnl": [daily_benchmark_return] * num_days,
+                "returns": [daily_benchmark_return] * num_days,
             }
         )
 
@@ -1046,8 +1046,8 @@ class TestPeriodPerformanceRaw:
                     assert raw[label][key] == pytest.approx(expected[label][key])
 
     def test_empty_df(self):
-        df = pl.DataFrame({"date": [], "pnl": []}).with_columns(
-            pl.col("date").cast(pl.Date), pl.col("pnl").cast(pl.Float64)
+        df = pl.DataFrame({"date": [], "returns": []}).with_columns(
+            pl.col("date").cast(pl.Date), pl.col("returns").cast(pl.Float64)
         )
         raw = stats.period_performance_raw(df)
         for entry in raw.values():
@@ -1088,7 +1088,7 @@ class TestPeriodPerformance:
         from datetime import date, timedelta
 
         dates = [date(2023, 6, 1) + timedelta(days=i) for i in range(30)]
-        df = pl.DataFrame({"date": dates, "pnl": [0.001] * 30}).with_columns(
+        df = pl.DataFrame({"date": dates, "returns": [0.001] * 30}).with_columns(
             pl.col("date").cast(pl.Date)
         )
         result = stats.period_performance(df)
@@ -1103,8 +1103,8 @@ class TestPeriodPerformance:
 
         start = datetime(2024, 1, 1)
         dates = [start + timedelta(days=i) for i in range(400)]
-        df = pd.DataFrame({"date": dates, "pnl": [0.001] * 400})
-        base_df = pd.DataFrame({"date": dates, "pnl": [0.0005] * 400})
+        df = pd.DataFrame({"date": dates, "returns": [0.001] * 400})
+        base_df = pd.DataFrame({"date": dates, "returns": [0.0005] * 400})
 
         result = stats.period_performance(df, base_df)
 

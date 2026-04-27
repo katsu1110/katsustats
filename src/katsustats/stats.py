@@ -1,8 +1,8 @@
 """
 katsustats.stats — Financial metrics computed with Polars.
 
-All functions accept a Polars or pandas DataFrame with columns ["date", "pnl"]
-where "pnl" represents daily P&L (profit/loss) values, and return
+All functions accept a Polars or pandas DataFrame with columns ["date", "returns"]
+where "returns" represents daily P&L (profit/loss) values, and return
 scalar metric values or Polars DataFrames.
 """
 
@@ -19,9 +19,9 @@ from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 
 
 def _to_returns(df: DataFrameLike, name: str = "df") -> pl.Series:
-    """Extract the pnl column as a Polars Series."""
+    """Extract the returns column as a Polars Series."""
     df = ensure_polars(df, name=name)
-    return df.get_column("pnl")
+    return df.get_column("returns")
 
 
 def _cumulative(returns: pl.Series) -> pl.Series:
@@ -274,8 +274,8 @@ def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
         df.with_columns(pl.col("date").cast(pl.Date))
         .sort("date")
         .group_by_dynamic("date", every=every)
-        .agg((pl.col("pnl") + 1).product() - 1)
-        .get_column("pnl")
+        .agg((pl.col("returns") + 1).product() - 1)
+        .get_column("returns")
     )
 
 
@@ -348,7 +348,7 @@ def worst_year(df: DataFrameLike) -> float:
 
 
 def exposure(df: DataFrameLike) -> float:
-    """Fraction of days with non-zero pnl (active market exposure)."""
+    """Fraction of days with non-zero returns (active market exposure)."""
     r = _to_returns(df)
     n = r.len()
     if n == 0:
@@ -447,9 +447,11 @@ def alpha_beta(
     """Annualized alpha and beta vs benchmark using OLS."""
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
-    r = joined.get_column("pnl").to_numpy()
-    b = joined.get_column("_base_pnl").to_numpy()
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    )
+    r = joined.get_column("returns").to_numpy()
+    b = joined.get_column("_base_returns").to_numpy()
 
     cov = np.cov(r, b)
     var_b = cov[1, 1]
@@ -465,9 +467,11 @@ def correlation(df: DataFrameLike, base_df: DataFrameLike) -> float:
     """Pearson correlation between strategy and benchmark returns."""
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
-    r = joined.get_column("pnl").to_numpy()
-    b = joined.get_column("_base_pnl").to_numpy()
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    )
+    r = joined.get_column("returns").to_numpy()
+    b = joined.get_column("_base_returns").to_numpy()
     return float(np.corrcoef(r, b)[0, 1])
 
 
@@ -477,8 +481,10 @@ def information_ratio(
     """Annualized information ratio (excess return / tracking error)."""
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
-    excess = joined.get_column("pnl") - joined.get_column("_base_pnl")
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    )
+    excess = joined.get_column("returns") - joined.get_column("_base_returns")
     te = float(excess.std())
     if te == 0:
         return 0.0
@@ -489,9 +495,11 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     """Total compounded excess return vs benchmark (aligned on common dates)."""
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner")
-    strat_ret = float((joined.get_column("pnl") + 1).product() - 1)
-    bench_ret = float((joined.get_column("_base_pnl") + 1).product() - 1)
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    )
+    strat_ret = float((joined.get_column("returns") + 1).product() - 1)
+    bench_ret = float((joined.get_column("_base_returns") + 1).product() - 1)
     return strat_ret - bench_ret
 
 
@@ -520,9 +528,9 @@ def regime_stats(
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
     assert "date" in df.columns, "df must have a 'date' column"
-    assert "pnl" in df.columns, "df must have a 'pnl' column"
+    assert "returns" in df.columns, "df must have a 'returns' column"
     assert "date" in base_df.columns, "base_df must have a 'date' column"
-    assert "pnl" in base_df.columns, "base_df must have a 'pnl' column"
+    assert "returns" in base_df.columns, "base_df must have a 'returns' column"
 
     df = df.sort("date")
     base_df = base_df.sort("date")
@@ -532,8 +540,10 @@ def regime_stats(
     )
 
     base_features = base_df.with_columns(
-        ((pl.col("pnl") + 1).cum_prod() - 1).alias("_cumret"),
-        pl.col("pnl").rolling_std(window_size=vol_window, ddof=1).alias("_rolling_vol"),
+        ((pl.col("returns") + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col("returns")
+        .rolling_std(window_size=vol_window, ddof=1)
+        .alias("_rolling_vol"),
     ).with_columns(
         pl.col("_cumret").rolling_mean(window_size=trend_window).alias("_trend_ma")
     )
@@ -569,7 +579,7 @@ def regime_stats(
     ]
     rows: list[dict[str, float | int | str]] = []
     for regime in regimes:
-        subset = aligned.filter(pl.col("regime") == regime).select(["date", "pnl"])
+        subset = aligned.filter(pl.col("regime") == regime).select(["date", "returns"])
         n_days = subset.height
         if n_days == 0:
             rows.append(
@@ -624,10 +634,10 @@ def day_of_week_stats(df: DataFrameLike) -> pl.DataFrame:
         df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
         .group_by("dow")
         .agg(
-            pl.col("pnl").mean().alias("mean_return"),
-            (pl.col("pnl") > 0).mean().alias("win_rate"),
-            ((pl.col("pnl") + 1).product() - 1).alias("total_return"),
-            pl.col("pnl").count().alias("count"),
+            pl.col("returns").mean().alias("mean_return"),
+            (pl.col("returns") > 0).mean().alias("win_rate"),
+            ((pl.col("returns") + 1).product() - 1).alias("total_return"),
+            pl.col("returns").count().alias("count"),
         )
         .sort("dow")
         .with_columns(
@@ -656,8 +666,8 @@ def rolling_sharpe(
         df.sort("date")
         .with_columns(
             [
-                pl.col("pnl").rolling_mean(window_size=window).alias("_rm"),
-                pl.col("pnl").rolling_std(window_size=window, ddof=1).alias("_rs"),
+                pl.col("returns").rolling_mean(window_size=window).alias("_rm"),
+                pl.col("returns").rolling_std(window_size=window, ddof=1).alias("_rs"),
             ]
         )
         .with_columns(
@@ -678,7 +688,7 @@ def rolling_volatility(
         df.sort("date")
         .with_columns(
             (
-                pl.col("pnl").rolling_std(window_size=window, ddof=1)
+                pl.col("returns").rolling_std(window_size=window, ddof=1)
                 * float(periods**0.5)
             ).alias("rolling_vol")
         )
@@ -805,7 +815,7 @@ def summary_metrics_raw(
     Return summary metrics as raw numeric values.
 
     Args:
-        df: Polars or pandas DataFrame with ["date", "pnl"] columns.
+        df: Polars or pandas DataFrame with ["date", "returns"] columns.
         base_df: Optional benchmark DataFrame with the same schema. When
             provided, comparison metrics are added to the returned dict.
         rf: Annualized risk-free rate used by risk-adjusted metrics.
@@ -959,10 +969,12 @@ def period_performance_raw(
         base_df = _daily_returns(ensure_polars(base_df, name="base_df"))
         # Align to common dates so strategy and benchmark use the same anchor.
         joined = df.join(
-            base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner"
+            base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
         ).sort("date")
-        df = joined.select(["date", "pnl"])
-        base_df = joined.select([pl.col("date"), pl.col("_base_pnl").alias("pnl")])
+        df = joined.select(["date", "returns"])
+        base_df = joined.select(
+            [pl.col("date"), pl.col("_base_returns").alias("returns")]
+        )
 
     if df.height == 0:
         row: dict[str, float] = {"strategy": float("nan")}

@@ -26,12 +26,12 @@ def main() -> None:
     # Benchmark: lower return, lower vol (simulate a broad index)
     bench_returns = rng.normal(loc=0.0003, scale=0.008, size=n)
 
-    pnl = pl.DataFrame({"date": dates, "pnl": strategy_returns.tolist()})
-    benchmark = pl.DataFrame({"date": dates, "pnl": bench_returns.tolist()})
+    returns = pl.DataFrame({"date": dates, "returns": strategy_returns.tolist()})
+    benchmark = pl.DataFrame({"date": dates, "returns": bench_returns.tolist()})
 
-    results = katsustats.reports.full(pnl, base_pnl=benchmark, show=False)
+    results = katsustats.reports.full(returns, benchmark=benchmark, show=False)
 
-    # The metrics DataFrame includes benchmark-relative columns when base_pnl is given
+    # The metrics DataFrame includes benchmark-relative columns when benchmark is given
     print("\nAll metrics:")
     print(results["metrics"])
 

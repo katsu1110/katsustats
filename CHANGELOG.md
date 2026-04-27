@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Breaking changes
+- **Column rename**: the required DataFrame column is now `"returns"` (was `"pnl"`).
+  Update your DataFrames: `df.rename({"pnl": "returns"})`.
+- **Parameter rename**: `reports.full()` and `reports.html()` now accept
+  `returns` (was `pnl`) and `benchmark` (was `base_pnl`).
+
 ## [0.1.0] — 2024-01-01
 
 ### Added

@@ -21,16 +21,16 @@ def main() -> None:
     dates = pl.date_range(pl.date(2020, 1, 1), pl.date(2022, 12, 31), "1d", eager=True)
     n = len(dates)
 
-    pnl = pl.DataFrame(
-        {"date": dates, "pnl": rng.normal(loc=0.0005, scale=0.011, size=n).tolist()}
+    returns = pl.DataFrame(
+        {"date": dates, "returns": rng.normal(loc=0.0005, scale=0.011, size=n).tolist()}
     )
     benchmark = pl.DataFrame(
-        {"date": dates, "pnl": rng.normal(loc=0.0003, scale=0.008, size=n).tolist()}
+        {"date": dates, "returns": rng.normal(loc=0.0003, scale=0.008, size=n).tolist()}
     )
 
     katsustats.reports.html(
-        pnl,
-        base_pnl=benchmark,
+        returns,
+        benchmark=benchmark,
         title="Demo Strategy",
         output="report.html",
     )

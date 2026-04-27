@@ -1,7 +1,7 @@
 """
 katsustats.plots — Matplotlib chart functions for backtest visualization.
 
-All plot functions accept Polars or pandas DataFrames with ["date", "pnl"]
+All plot functions accept Polars or pandas DataFrames with ["date", "returns"]
 columns and return matplotlib Figure objects for inline notebook display.
 """
 
@@ -87,11 +87,11 @@ def _align_to_common_dates(
 
     The sort ensures chronological order since joins do not preserve row order.
     """
-    joined = df.join(base_df.rename({"pnl": "_base_pnl"}), on="date", how="inner").sort(
-        "date"
-    )
-    return joined.select(["date", "pnl"]), joined.select(
-        [pl.col("date"), pl.col("_base_pnl").alias("pnl")]
+    joined = df.join(
+        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+    ).sort("date")
+    return joined.select(["date", "returns"]), joined.select(
+        [pl.col("date"), pl.col("_base_returns").alias("returns")]
     )
 
 
@@ -224,7 +224,7 @@ def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
             pl.col("date").cast(pl.Date).dt.month().alias("month"),
         )
         .group_by(["year", "month"])
-        .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+        .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
         .sort(["year", "month"])
     )
 
@@ -326,7 +326,7 @@ def plot_yearly_returns(
         return (
             d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
@@ -392,7 +392,7 @@ def plot_eoy_returns(
         return (
             d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("pnl") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
