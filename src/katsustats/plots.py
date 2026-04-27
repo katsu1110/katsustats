@@ -22,12 +22,12 @@ from ._dataframe import DataFrameLike, ensure_polars
 # ---------------------------------------------------------------------------
 
 _COLORS = {
-    "strategy": "#2196F3",  # Material Blue
-    "benchmark": "#FF9800",  # Material Orange
+    "strategy": "#2563eb",  # matches HTML report accent blue
+    "benchmark": "#f97316",  # muted orange, easier on the eye than Material Orange
     "positive": "#4CAF50",  # Material Green
     "negative": "#F44336",  # Material Red
     "neutral": "#9E9E9E",  # Material Grey
-    "fill": "#BBDEFB",  # Light Blue
+    "fill": "#dbeafe",  # soft blue tint matching strategy colour
     "grid": "#E0E0E0",
     "text": "#212121",
     "text_secondary": "#757575",
@@ -38,6 +38,16 @@ _HEATMAP_CMAP = LinearSegmentedColormap.from_list(
     "katsustats_diverging",
     [_COLORS["negative"], "#ffffff", _COLORS["positive"]],
 )
+
+# Prefer system sans-serif fonts (Helvetica/Arial) over matplotlib's DejaVu Sans
+# so chart typography matches the HTML report's sans-serif stack.
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = [
+    "Helvetica",
+    "Arial",
+    "Liberation Sans",
+    "DejaVu Sans",
+]
 
 
 def _apply_style(ax, fig):
