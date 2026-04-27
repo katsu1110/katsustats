@@ -204,7 +204,7 @@ def plot_drawdown_periods(
         ax.axvspan(start, end, alpha=0.2, color=_COLORS["negative"], lw=0)
 
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    _add_title(ax, fig, "Drawdown Periods")
+    _add_title(ax, fig, f"Worst {top_n} Drawdown Periods")
     fig.autofmt_xdate()
     fig.tight_layout()
     return fig
