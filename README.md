@@ -19,11 +19,9 @@ Highlights:
 
 ## Preview
 
-### Cumulative returns
-
-![Cumulative returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/cumulative_returns.png)
-
-### Additional charts
+| Cumulative returns | Daily returns |
+|-----------|-----------------|
+| ![Cumulative returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/cumulative_returns.png) | ![Daily returns preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/daily_returns.png) |
 
 | Drawdowns | Monthly returns |
 |-----------|-----------------|
