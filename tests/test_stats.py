@@ -727,6 +727,76 @@ class TestPandasInputs:
         assert isinstance(stats.best_year(sample_pandas_df), float)
         assert isinstance(stats.worst_year(sample_pandas_df), float)
 
+    def test_scalar_metrics_accept_pandas_indexed_df(self, sample_pandas_df_indexed):
+        assert isinstance(stats.total_return(sample_pandas_df_indexed), float)
+        assert isinstance(stats.max_drawdown(sample_pandas_df_indexed), float)
+
+    def test_dataframe_metrics_accept_pandas_indexed_df(self, sample_pandas_df_indexed):
+        assert isinstance(
+            stats.drawdown_details(sample_pandas_df_indexed), pl.DataFrame
+        )
+        assert isinstance(
+            stats.rolling_sharpe(sample_pandas_df_indexed, window=5), pl.DataFrame
+        )
+
+    def test_benchmark_metrics_accept_pandas_indexed_df(
+        self, sample_pandas_df_indexed, benchmark_pandas_df_indexed
+    ):
+        result = stats.summary_metrics(
+            sample_pandas_df_indexed, benchmark_pandas_df_indexed
+        )
+        assert "benchmark" in result.columns
+
+    def test_scalar_metrics_accept_pandas_series(self, sample_pandas_series):
+        assert isinstance(stats.total_return(sample_pandas_series), float)
+        assert isinstance(stats.max_drawdown(sample_pandas_series), float)
+
+    def test_dataframe_metrics_accept_pandas_series(self, sample_pandas_series):
+        assert isinstance(stats.drawdown_details(sample_pandas_series), pl.DataFrame)
+        assert isinstance(
+            stats.rolling_sharpe(sample_pandas_series, window=5), pl.DataFrame
+        )
+
+    def test_benchmark_metrics_accept_pandas_series(
+        self, sample_pandas_series, benchmark_pandas_series
+    ):
+        result = stats.summary_metrics(sample_pandas_series, benchmark_pandas_series)
+        assert "benchmark" in result.columns
+
+    def test_indexed_df_matches_column_df(
+        self, sample_pandas_df, sample_pandas_df_indexed
+    ):
+        """Both pandas shapes should produce identical scalar results."""
+        assert stats.total_return(sample_pandas_df) == pytest.approx(
+            stats.total_return(sample_pandas_df_indexed)
+        )
+
+    def test_series_matches_column_df(self, sample_pandas_df, sample_pandas_series):
+        """Series shape should produce identical scalar results to column-form df."""
+        assert stats.total_return(sample_pandas_df) == pytest.approx(
+            stats.total_return(sample_pandas_series)
+        )
+
+    def test_date_column_wins_over_datetime_index(self, sample_pandas_df):
+        """DataFrame with both a 'date' column and a datetime index: column wins."""
+        import pandas as pd
+
+        idx = pd.DatetimeIndex([pd.Timestamp("2023-01-01")] * len(sample_pandas_df))
+        df_both = sample_pandas_df.copy()
+        df_both.index = idx
+        # the 'date' column determines dates — result matches the column-only path
+        assert stats.total_return(df_both) == pytest.approx(
+            stats.total_return(sample_pandas_df)
+        )
+
+    def test_non_datetime_index_still_raises(self):
+        """DataFrame with no 'date' column and a non-datetime index raises."""
+        import pandas as pd
+
+        df = pd.DataFrame({"returns": [0.01, -0.005, 0.008]})
+        with pytest.raises(AssertionError, match="missing columns"):
+            stats.total_return(df)
+
 
 # ---------------------------------------------------------------------------
 # Streaks, Period Extrema & Exposure

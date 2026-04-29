@@ -68,13 +68,17 @@ with two required columns:
 | `date` | date-like | Trading date |
 | `returns`  | float-like | Daily return (e.g. `0.01` = +1%) |
 
-When a pandas DataFrame is passed, `katsustats` converts it to Polars at the
-start of processing.
+When a pandas DataFrame or Series is passed, `katsustats` converts it to
+Polars at the start of processing.
 
 If `date` is datetime-like, it is normalized to `pl.Date` before analysis.
 
 If multiple rows share the same `date`, `katsustats` compounds those same-day
 `returns` values into one daily return, emits a warning, and continues.
+
+Quantstats-style inputs (``pd.Series`` with a ``DatetimeIndex``, or a
+``pd.DataFrame`` with a ``DatetimeIndex`` and a ``returns`` column) are
+accepted automatically — the index is promoted to the ``date`` column.
 
 ## Basic usage
 
@@ -102,6 +106,23 @@ returns = pd.DataFrame({
     "returns": your_daily_returns,
 })
 
+results = katsustats.reports.full(returns)
+```
+
+### Migrating from quantstats
+
+If your existing code passes a ``pd.Series`` or a ``pd.DataFrame`` with a
+``DatetimeIndex`` (the quantstats convention), both work without modification:
+
+```python
+import pandas as pd
+
+# pd.Series with DatetimeIndex
+returns = pd.Series(your_daily_returns, index=date_index, name="returns")
+results = katsustats.reports.full(returns)
+
+# pd.DataFrame with DatetimeIndex
+returns = pd.DataFrame({"returns": your_daily_returns}, index=date_index)
 results = katsustats.reports.full(returns)
 ```
 

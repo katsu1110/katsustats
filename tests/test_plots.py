@@ -52,6 +52,20 @@ class TestPlotCumulativeReturns:
         )
         assert isinstance(fig, Figure)
 
+    def test_accepts_pandas_indexed_df(
+        self, sample_pandas_df_indexed, benchmark_pandas_df_indexed
+    ):
+        fig = plots.plot_cumulative_returns(
+            sample_pandas_df_indexed, base_df=benchmark_pandas_df_indexed
+        )
+        assert isinstance(fig, Figure)
+
+    def test_accepts_pandas_series(self, sample_pandas_series, benchmark_pandas_series):
+        fig = plots.plot_cumulative_returns(
+            sample_pandas_series, base_df=benchmark_pandas_series
+        )
+        assert isinstance(fig, Figure)
+
     def test_offset_benchmark_dates_do_not_raise(self, sample_df):
         """Regression: misaligned benchmark dates handled via inner join."""
         offset_bench = pl.DataFrame(

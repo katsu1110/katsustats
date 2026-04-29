@@ -11,8 +11,35 @@ class DataFrameLike(Protocol):
     def to_pandas(self) -> Any: ...
 
 
-def _is_pandas_dataframe(obj: Any) -> bool:
+def _is_pandas_object(obj: Any) -> bool:
     return type(obj).__module__.startswith("pandas")
+
+
+def _normalize_pandas_input(obj: Any) -> Any:
+    """Normalize quantstats-style pandas inputs to a column-form DataFrame.
+
+    Accepts:
+    - ``pd.Series`` with a DatetimeIndex: converted to a DataFrame with a
+      ``returns`` column, then treated as a DatetimeIndex DataFrame.
+    - ``pd.DataFrame`` with no ``date`` column and a datetime-like index:
+      the index is promoted to a ``date`` column.
+    - Anything else (including DataFrames that already have a ``date`` column):
+      returned unchanged so existing validation paths stay intact.
+    """
+    import pandas as pd  # safe: only called when pandas is confirmed importable
+
+    if isinstance(obj, pd.Series):
+        obj = obj.to_frame(name="returns")
+
+    if isinstance(obj, pd.DataFrame) and "date" not in obj.columns:
+        if pd.api.types.is_datetime64_any_dtype(obj.index):
+            obj = obj.reset_index()
+            # rename whatever the index column is called to "date"
+            first_col = obj.columns[0]
+            if first_col != "date":
+                obj = obj.rename(columns={first_col: "date"})
+
+    return obj
 
 
 def _compound_by_date(df: pl.DataFrame) -> pl.DataFrame:
@@ -51,10 +78,19 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     Validates that the input has those columns, casts ``date`` to ``pl.Date``
     if needed, and compounds same-date ``returns`` rows into one daily return with
     a warning when duplicate dates are detected.
+
+    Accepted pandas shapes (in addition to the standard ``["date", "returns"]``
+    column form):
+
+    - ``pd.Series`` with a ``DatetimeIndex`` — values become the ``returns``
+      column; the index becomes the ``date`` column.
+    - ``pd.DataFrame`` with a ``DatetimeIndex`` and a ``returns`` column but
+      no ``date`` column — the index is promoted to a ``date`` column.
     """
     if isinstance(df, pl.DataFrame):
         polars_df = df
-    elif _is_pandas_dataframe(df):
+    elif _is_pandas_object(df):
+        df = _normalize_pandas_input(df)
         try:
             polars_df = pl.from_pandas(df)
         except ImportError:

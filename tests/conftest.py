@@ -119,6 +119,34 @@ def benchmark_pandas_df() -> pd.DataFrame:
 
 
 @pytest.fixture
+def sample_pandas_df_indexed() -> pd.DataFrame:
+    """20 weekdays, mix of positive and negative returns — DatetimeIndex form."""
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d in _WEEKDAYS])
+    return pd.DataFrame({"returns": _RETURNS}, index=idx)
+
+
+@pytest.fixture
+def benchmark_pandas_df_indexed() -> pd.DataFrame:
+    """20 weekdays, benchmark returns — DatetimeIndex form."""
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d in _WEEKDAYS])
+    return pd.DataFrame({"returns": _BENCH_RETURNS}, index=idx)
+
+
+@pytest.fixture
+def sample_pandas_series() -> pd.Series:
+    """20 weekdays, mix of positive and negative returns — pd.Series form."""
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d in _WEEKDAYS])
+    return pd.Series(_RETURNS, index=idx, name="returns")
+
+
+@pytest.fixture
+def benchmark_pandas_series() -> pd.Series:
+    """20 weekdays, benchmark returns — pd.Series form."""
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d in _WEEKDAYS])
+    return pd.Series(_BENCH_RETURNS, index=idx, name="returns")
+
+
+@pytest.fixture
 def grouped_sample_pandas_df() -> pd.DataFrame:
     """20 weekdays of grouped portfolio PnL contributions, as pandas."""
     groups = ["Tech", "Energy", "Financials"]

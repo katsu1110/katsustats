@@ -104,6 +104,26 @@ class TestFull:
         )
         assert isinstance(result["metrics"], pl.DataFrame)
 
+    def test_accepts_pandas_indexed_df(
+        self, sample_pandas_df_indexed, benchmark_pandas_df_indexed
+    ):
+        result = reports.full(
+            sample_pandas_df_indexed,
+            benchmark=benchmark_pandas_df_indexed,
+            show=False,
+            verbose=False,
+        )
+        assert isinstance(result["metrics"], pl.DataFrame)
+
+    def test_accepts_pandas_series(self, sample_pandas_series, benchmark_pandas_series):
+        result = reports.full(
+            sample_pandas_series,
+            benchmark=benchmark_pandas_series,
+            show=False,
+            verbose=False,
+        )
+        assert isinstance(result["metrics"], pl.DataFrame)
+
     def test_datetime_date_column_accepted(self, sample_df):
         dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
         result = reports.full(dt_df, show=False, verbose=False)
