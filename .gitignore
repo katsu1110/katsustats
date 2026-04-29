@@ -18,3 +18,6 @@ htmlcov/
 
 # Editor / notebook metadata
 .ipynb_checkpoints/
+
+# Generated reports (root-level only; examples/reports/ is intentional)
+/report.html
