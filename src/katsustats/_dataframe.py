@@ -15,7 +15,7 @@ def _is_pandas_object(obj: Any) -> bool:
     return type(obj).__module__.startswith("pandas")
 
 
-def _normalize_pandas_input(obj: Any) -> Any:
+def _normalize_pandas_input(obj: Any, name: str = "df") -> Any:
     """Normalize quantstats-style pandas inputs to a column-form DataFrame.
 
     Accepts:
@@ -23,21 +23,27 @@ def _normalize_pandas_input(obj: Any) -> Any:
       ``returns`` column, then treated as a DatetimeIndex DataFrame.
     - ``pd.DataFrame`` with no ``date`` column and a datetime-like index:
       the index is promoted to a ``date`` column.
-    - Anything else (including DataFrames that already have a ``date`` column):
-      returned unchanged so existing validation paths stay intact.
+    - ``pd.DataFrame`` that already has a ``date`` column: returned unchanged.
+
+    Raises ``TypeError`` for other pandas objects (e.g. ``pd.Timestamp``,
+    ``pd.Index``) so callers get a clear message instead of a Polars error.
     """
     import pandas as pd  # safe: only called when pandas is confirmed importable
 
     if isinstance(obj, pd.Series):
         obj = obj.to_frame(name="returns")
+    elif not isinstance(obj, pd.DataFrame):
+        raise TypeError(
+            f"{name} must be a Polars DataFrame, pandas DataFrame, or pandas Series, "
+            f"got {type(obj).__name__}"
+        )
 
-    if isinstance(obj, pd.DataFrame) and "date" not in obj.columns:
-        if pd.api.types.is_datetime64_any_dtype(obj.index):
-            obj = obj.reset_index()
-            # rename whatever the index column is called to "date"
-            first_col = obj.columns[0]
-            if first_col != "date":
-                obj = obj.rename(columns={first_col: "date"})
+    if "date" not in obj.columns and pd.api.types.is_datetime64_any_dtype(obj.index):
+        obj = obj.reset_index()
+        # rename whatever the index column is called to "date"
+        first_col = obj.columns[0]
+        if first_col != "date":
+            obj = obj.rename(columns={first_col: "date"})
 
     return obj
 
@@ -90,14 +96,15 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
     if isinstance(df, pl.DataFrame):
         polars_df = df
     elif _is_pandas_object(df):
-        df = _normalize_pandas_input(df)
+        df = _normalize_pandas_input(df, name=name)
         try:
             polars_df = pl.from_pandas(df)
         except ImportError:
             polars_df = pl.DataFrame({col: df[col].tolist() for col in df.columns})
     else:
         raise TypeError(
-            f"{name} must be a Polars or pandas DataFrame, got {type(df).__name__}"
+            f"{name} must be a Polars DataFrame, pandas DataFrame, or pandas Series, "
+            f"got {type(df).__name__}"
         )
     missing = {"date", "returns"} - set(polars_df.columns)
     assert not missing, f"{name} is missing columns: {missing}"

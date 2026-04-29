@@ -797,6 +797,13 @@ class TestPandasInputs:
         with pytest.raises(AssertionError, match="missing columns"):
             stats.total_return(df)
 
+    def test_non_tabular_pandas_object_raises_type_error(self):
+        """Non-DataFrame/Series pandas objects give a clear TypeError."""
+        import pandas as pd
+
+        with pytest.raises(TypeError, match="pandas Series"):
+            stats.total_return(pd.Timestamp("2023-01-02"))
+
 
 # ---------------------------------------------------------------------------
 # Streaks, Period Extrema & Exposure
