@@ -19,7 +19,8 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
     elif suffix == ".csv":
         df = pl.read_csv(p, try_parse_dates=True)
     else:
-        sys.exit(f"Unsupported file format '{suffix}'. Use .csv or .parquet.")
+        label = f"'{suffix}'" if suffix else "no extension"
+        sys.exit(f"{p}: {label} is not supported. Use .csv or .parquet.")
 
     rename: dict[str, str] = {}
     if date_col != "date":

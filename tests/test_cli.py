@@ -81,7 +81,7 @@ class TestReportCommand:
         )
         main()
         assert out.exists()
-        assert out.read_text().startswith("<!DOCTYPE html>")
+        assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_parquet_produces_html(
         self, parquet_file: Path, tmp_path: Path, monkeypatch
@@ -92,7 +92,7 @@ class TestReportCommand:
         )
         main()
         assert out.exists()
-        assert out.read_text().startswith("<!DOCTYPE html>")
+        assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_default_output_path(self, csv_file: Path, monkeypatch):
         monkeypatch.setattr("sys.argv", ["katsustats", "report", str(csv_file)])
@@ -121,7 +121,7 @@ class TestReportCommand:
         )
         main()
         assert out.exists()
-        assert out.read_text().startswith("<!DOCTYPE html>")
+        assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_with_benchmark(
         self, csv_file: Path, benchmark_csv: Path, tmp_path: Path, monkeypatch
@@ -141,7 +141,7 @@ class TestReportCommand:
         )
         main()
         assert out.exists()
-        assert out.read_text().startswith("<!DOCTYPE html>")
+        assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_custom_title_appears_in_output(
         self, csv_file: Path, tmp_path: Path, monkeypatch
@@ -160,7 +160,7 @@ class TestReportCommand:
             ],
         )
         main()
-        assert "My Alpha Strategy" in out.read_text()
+        assert "My Alpha Strategy" in out.read_text(encoding="utf-8")
 
     def test_unsupported_extension_exits(self, tmp_path: Path, monkeypatch):
         bad = tmp_path / "data.xlsx"
@@ -169,5 +169,18 @@ class TestReportCommand:
             "sys.argv",
             ["katsustats", "report", str(bad), "-o", str(tmp_path / "out.html")],
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exc_info:
             main()
+        assert "not supported" in str(exc_info.value)
+        assert ".xlsx" in str(exc_info.value)
+
+    def test_no_extension_exits_with_clear_message(self, tmp_path: Path, monkeypatch):
+        bad = tmp_path / "data"
+        bad.write_text("")
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "report", str(bad), "-o", str(tmp_path / "out.html")],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert "no extension" in str(exc_info.value)
