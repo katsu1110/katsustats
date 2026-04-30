@@ -163,6 +163,26 @@ results = katsustats.reports.full(
 )
 ```
 
+## CLI
+
+Generate an HTML tearsheet directly from a CSV or Parquet file — no Python required:
+
+```bash
+# From a CSV file (date and returns columns)
+katsustats report trades.csv -o report.html
+
+# Custom column names
+katsustats report trades.csv --date-col day --returns-col pnl -o report.html
+
+# With a benchmark and a custom title
+katsustats report trades.csv --benchmark benchmark.csv --title "My Strategy" -o report.html
+
+# From a Parquet file with a custom risk-free rate
+katsustats report trades.parquet --rf 0.04 -o report.html
+```
+
+If `-o` is omitted the report is written alongside the input file (e.g. `trades.html`).
+
 ## HTML report
 
 Generate a self-contained HTML report (similar to `qs.reports.html()`):
