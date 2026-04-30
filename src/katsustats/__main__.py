@@ -13,6 +13,9 @@ from katsustats import reports
 
 def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
     p = Path(path)
+    if not p.exists():
+        sys.exit(f"{p}: file not found.")
+
     suffix = p.suffix.lower()
     if suffix == ".parquet":
         df = pl.read_parquet(p)
@@ -21,6 +24,14 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
     else:
         label = f"'{suffix}'" if suffix else "no extension"
         sys.exit(f"{p}: {label} is not supported. Use .csv or .parquet.")
+
+    missing = [c for c in [date_col, returns_col] if c not in df.columns]
+    if missing:
+        sys.exit(
+            f"{p}: column(s) {missing} not found. "
+            f"Available columns: {df.columns}. "
+            f"Use --date-col / --returns-col to specify the correct names."
+        )
 
     rename: dict[str, str] = {}
     if date_col != "date":

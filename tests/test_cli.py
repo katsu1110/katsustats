@@ -99,7 +99,7 @@ class TestReportCommand:
         main()
         expected = csv_file.with_suffix(".html")
         assert expected.exists()
-        assert expected.read_text().startswith("<!DOCTYPE html>")
+        assert expected.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_custom_column_names(
         self, csv_file_custom_cols: Path, tmp_path: Path, monkeypatch
@@ -184,3 +184,38 @@ class TestReportCommand:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert "no extension" in str(exc_info.value)
+
+    def test_missing_file_exits_with_clear_message(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(tmp_path / "nonexistent.csv"),
+                "-o",
+                str(tmp_path / "out.html"),
+            ],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert "file not found" in str(exc_info.value)
+
+    def test_missing_column_exits_with_clear_message(
+        self, csv_file: Path, tmp_path: Path, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--returns-col",
+                "pnl",
+                "-o",
+                str(tmp_path / "out.html"),
+            ],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert "pnl" in str(exc_info.value)
+        assert "--returns-col" in str(exc_info.value)

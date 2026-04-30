@@ -17,6 +17,9 @@ jobs:
           - os: windows-latest
             artifact_name: katsustats-windows-x86_64.exe
 
+    permissions:
+      contents: write
+
     runs-on: ${{ matrix.os }}
 
     steps:
