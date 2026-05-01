@@ -320,6 +320,23 @@ class TestPlotDowReturns:
         fig = plots.plot_dow_returns(sample_df, figsize=(8, 4))
         assert isinstance(fig, Figure)
 
+    def test_weekends_shown_when_present(self):
+        """Bars for Sat/Sun appear when the data includes weekend dates."""
+        dates = [
+            "2024-01-01",  # Mon
+            "2024-01-02",  # Tue
+            "2024-01-06",  # Sat
+            "2024-01-07",  # Sun
+        ]
+        df = pl.DataFrame(
+            {"date": dates, "returns": [0.01, -0.01, 0.02, -0.02]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        fig = plots.plot_dow_returns(df)
+        ax = fig.axes[0]
+        bar_labels = [tick.get_text() for tick in ax.get_xticklabels()]
+        assert "Sat" in bar_labels
+        assert "Sun" in bar_labels
+
 
 # ---------------------------------------------------------------------------
 # plot_returns_vs_benchmark

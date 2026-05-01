@@ -694,8 +694,6 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     """Day-of-week bar chart showing mean return and win rate."""
     df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
-    # Filter to weekdays (1-5)
-    dow_df = dow_df.filter(pl.col("dow") <= 5)
 
     names = dow_df.get_column("dow_name").to_list()
     mean_ret = dow_df.get_column("mean_return").to_numpy()
