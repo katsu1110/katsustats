@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import datetime as _dt
 import io
+import json as _json
 import math
 
 import matplotlib
@@ -19,6 +20,14 @@ import polars as pl
 
 from . import plots, stats
 from ._dataframe import DataFrameLike, ensure_polars
+
+_COMPARISON_KEYS = {
+    "alpha",
+    "beta",
+    "correlation",
+    "information_ratio",
+    "excess_return",
+}
 
 
 def _print_df(df: pl.DataFrame, title: str = "") -> None:
@@ -112,6 +121,124 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
         rows_html.append(f"<tr>{cells}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
+
+
+def _json_safe_value(value: object) -> object:
+    """Convert Python / Polars values into JSON-safe primitives."""
+    if value is None:
+        return None
+    if isinstance(value, (_dt.datetime, _dt.date)):
+        return value.isoformat()
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+    return value
+
+
+def _df_to_records(df: pl.DataFrame) -> list[dict[str, object]]:
+    """Convert a Polars DataFrame to a list of JSON-safe row dicts."""
+    return [
+        {key: _json_safe_value(value) for key, value in row.items()}
+        for row in df.to_dicts()
+    ]
+
+
+def _json_dumps(payload: dict[str, object]) -> str:
+    """Serialize report payload to pretty JSON."""
+    return _json.dumps(payload, indent=2, ensure_ascii=False, allow_nan=False)
+
+
+def _metadata_payload(
+    returns: pl.DataFrame,
+    benchmark: pl.DataFrame | None,
+    *,
+    title: str,
+    rf: float,
+    periods: int,
+) -> dict[str, object]:
+    """Build shared metadata for structured report outputs."""
+    dates = returns.get_column("date")
+    return {
+        "title": title,
+        "start_date": _json_safe_value(dates.min()),
+        "end_date": _json_safe_value(dates.max()),
+        "n_days": returns.height,
+        "rf": rf,
+        "periods": periods,
+        "has_benchmark": benchmark is not None,
+    }
+
+
+def _report_payload(
+    returns: pl.DataFrame,
+    benchmark: pl.DataFrame | None,
+    *,
+    title: str,
+    rf: float,
+    periods: int,
+) -> dict[str, object]:
+    """Build an AI-friendly structured report payload."""
+    strategy_summary = stats.summary_metrics_raw(returns, None, rf, periods)
+    strategy_periods = stats.period_performance_raw(returns, None)
+
+    benchmark_summary: dict[str, float] | None = None
+    benchmark_periods: dict[str, dict[str, float]] | None = None
+    comparison: dict[str, float] | None = None
+    regime_analysis: list[dict[str, object]] = []
+
+    if benchmark is not None:
+        combined_summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
+        comparison = {
+            key: _json_safe_value(value)
+            for key, value in combined_summary.items()
+            if key in _COMPARISON_KEYS
+        }
+        benchmark_summary = stats.summary_metrics_raw(benchmark, None, rf, periods)
+        benchmark_periods = stats.period_performance_raw(returns, benchmark)
+        regime_df = stats.regime_stats(returns, benchmark, periods=periods)
+        regime_analysis = _df_to_records(regime_df.filter(pl.col("n_days") > 0))
+
+    return {
+        "metadata": _metadata_payload(
+            returns,
+            benchmark,
+            title=title,
+            rf=rf,
+            periods=periods,
+        ),
+        "strategy": {
+            "summary": {
+                key: _json_safe_value(value) for key, value in strategy_summary.items()
+            },
+            "period_performance": {
+                label: {key: _json_safe_value(value) for key, value in values.items()}
+                for label, values in strategy_periods.items()
+            },
+        },
+        "benchmark": (
+            None
+            if benchmark is None
+            else {
+                "summary": {
+                    key: _json_safe_value(value)
+                    for key, value in benchmark_summary.items()
+                },
+                "period_performance": {
+                    label: {
+                        key: _json_safe_value(value)
+                        for key, value in values.items()
+                        if key == "benchmark"
+                    }
+                    for label, values in benchmark_periods.items()
+                },
+            }
+        ),
+        "comparison": comparison,
+        "drawdowns": _df_to_records(stats.drawdown_details(returns)),
+        "day_of_week_stats": _df_to_records(stats.day_of_week_stats(returns)),
+        "regime_analysis": regime_analysis,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +614,63 @@ def html(
         return _build_html(returns, benchmark, rf, periods, title, output)
     finally:
         plt.switch_backend(orig_backend)
+
+
+def json(
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+    title: str = "Strategy",
+    output: str | None = None,
+) -> str:
+    """
+    Generate an AI-friendly JSON backtest report.
+
+    Args:
+        returns: Polars or pandas DataFrame with ["date", "returns"] columns.
+        benchmark: Optional benchmark DataFrame with the same schema.
+        rf: Risk-free rate (annualized, default 0.0).
+        periods: Trading days per year (default 252).
+        title: Report title (default "Strategy").
+        output: File path to write JSON. If None, only returns the JSON string.
+
+    Returns:
+        The rendered JSON string.
+    """
+    returns = ensure_polars(returns, name="returns")
+    assert "date" in returns.columns, "returns must have a 'date' column"
+    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    if benchmark is not None:
+        benchmark = ensure_polars(benchmark, name="benchmark")
+        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
+        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
+
+    returns = returns.sort("date")
+    assert returns["date"].n_unique() == returns.height, (
+        "Expected `returns` to have unique dates after `ensure_polars()` "
+        "normalization/compounding. If this fails, check the input for "
+        "duplicate same-date rows or investigate whether normalization "
+        "did not run as expected."
+    )
+    if benchmark is not None:
+        benchmark = benchmark.sort("date")
+
+    rendered = _json_dumps(
+        _report_payload(
+            returns,
+            benchmark,
+            title=title,
+            rf=rf,
+            periods=periods,
+        )
+    )
+
+    if output is not None:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(rendered)
+
+    return rendered
 
 
 def _build_html(

@@ -55,14 +55,25 @@ def _cmd_report(args: argparse.Namespace) -> None:
             args.benchmark_returns_col,
         )
 
-    output = args.output or str(Path(args.file).with_suffix(".html"))
-    reports.html(
-        df,
-        benchmark=benchmark,
-        rf=args.rf,
-        title=args.title,
-        output=output,
-    )
+    default_suffix = ".json" if args.format == "json" else ".html"
+    output = args.output or str(Path(args.file).with_suffix(default_suffix))
+
+    if args.format == "json":
+        reports.json(
+            df,
+            benchmark=benchmark,
+            rf=args.rf,
+            title=args.title,
+            output=output,
+        )
+    else:
+        reports.html(
+            df,
+            benchmark=benchmark,
+            rf=args.rf,
+            title=args.title,
+            output=output,
+        )
     print(f"Report written to {output}")
 
 
@@ -76,7 +87,7 @@ def main() -> None:
 
     p_report = sub.add_parser(
         "report",
-        help="Generate a self-contained HTML tearsheet from a CSV or Parquet file.",
+        help="Generate an HTML or JSON backtest report from a CSV or Parquet file.",
     )
     p_report.add_argument("file", help="Path to a .csv or .parquet returns file.")
     p_report.add_argument(
@@ -86,7 +97,13 @@ def main() -> None:
         "-o",
         "--output",
         default=None,
-        help="Output HTML file path (default: <file>.html).",
+        help="Output file path (default: <file>.html or <file>.json).",
+    )
+    p_report.add_argument(
+        "--format",
+        choices=["html", "json"],
+        default="html",
+        help="Output report format (default: html).",
     )
     p_report.add_argument(
         "--date-col",

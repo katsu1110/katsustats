@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import matplotlib.pyplot as plt
 import polars as pl
 import pytest
@@ -274,3 +276,75 @@ class TestHtml:
                 {"date": ["2023-01-02", "2023-01-03"], "returns": [0.32, -0.10]}
             ).with_columns(pl.col("date").cast(pl.Date))
         )
+
+
+# ---------------------------------------------------------------------------
+# reports.json
+# ---------------------------------------------------------------------------
+
+
+class TestJson:
+    def test_returns_json_string(self, sample_df):
+        result = reports.json(sample_df)
+        payload = json.loads(result)
+        assert isinstance(payload, dict)
+
+    def test_contains_expected_top_level_keys(self, sample_df):
+        payload = json.loads(reports.json(sample_df, title="AI Report"))
+        assert set(payload.keys()) == {
+            "metadata",
+            "strategy",
+            "benchmark",
+            "comparison",
+            "drawdowns",
+            "day_of_week_stats",
+            "regime_analysis",
+        }
+        assert payload["metadata"]["title"] == "AI Report"
+        assert payload["metadata"]["has_benchmark"] is False
+
+    def test_strategy_summary_matches_raw_metrics(self, sample_df):
+        payload = json.loads(reports.json(sample_df))
+        assert payload["strategy"]["summary"] == stats.summary_metrics_raw(sample_df)
+
+    def test_with_benchmark_includes_benchmark_and_comparison(
+        self, sample_df, benchmark_df
+    ):
+        payload = json.loads(reports.json(sample_df, benchmark=benchmark_df))
+        assert payload["benchmark"] is not None
+        assert payload["comparison"] is not None
+        assert "alpha" in payload["comparison"]
+
+    def test_without_benchmark_uses_null_sections(self, sample_df):
+        payload = json.loads(reports.json(sample_df))
+        assert payload["benchmark"] is None
+        assert payload["comparison"] is None
+        assert payload["regime_analysis"] == []
+
+    def test_output_writes_json_file(self, sample_df, tmp_path):
+        out_file = tmp_path / "report.json"
+        result = reports.json(sample_df, output=str(out_file))
+        assert out_file.exists()
+        assert out_file.read_text(encoding="utf-8") == result
+        assert json.loads(result)["metadata"]["title"] == "Strategy"
+
+    def test_dates_are_iso_strings(self, sample_df):
+        payload = json.loads(reports.json(sample_df))
+        assert payload["metadata"]["start_date"] == "2023-01-02"
+        if payload["drawdowns"]:
+            assert isinstance(payload["drawdowns"][0]["start"], str)
+
+    def test_duplicate_dates_warns_and_aggregates(self):
+        duplicate_dates_df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
+                "returns": [0.10, 0.20, -0.10],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            result = reports.json(duplicate_dates_df)
+
+        assert json.loads(result)["strategy"]["summary"][
+            "total_return"
+        ] == pytest.approx((1.10 * 1.20) * 0.90 - 1.0)
