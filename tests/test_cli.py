@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 from pathlib import Path
 
 import polars as pl
@@ -101,6 +102,66 @@ class TestReportCommand:
         assert expected.exists()
         assert expected.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
+    def test_json_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        assert out.exists()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["metadata"]["has_benchmark"] is False
+
+    def test_json_default_output_path(self, csv_file: Path, monkeypatch):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "report", str(csv_file), "--format", "json"],
+        )
+        main()
+        expected = csv_file.with_suffix(".json")
+        assert expected.exists()
+        payload = json.loads(expected.read_text(encoding="utf-8"))
+        assert payload["metadata"]["title"] == "Strategy"
+
+    def test_markdown_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "out.md"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "markdown",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        assert out.exists()
+        assert out.read_text(encoding="utf-8").startswith("# Strategy Backtest Summary")
+
+    def test_markdown_default_output_path(self, csv_file: Path, monkeypatch):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "report", str(csv_file), "--format", "markdown"],
+        )
+        main()
+        expected = csv_file.with_suffix(".md")
+        assert expected.exists()
+        assert expected.read_text(encoding="utf-8").startswith(
+            "# Strategy Backtest Summary"
+        )
+
     def test_custom_column_names(
         self, csv_file_custom_cols: Path, tmp_path: Path, monkeypatch
     ):
@@ -142,6 +203,51 @@ class TestReportCommand:
         main()
         assert out.exists()
         assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
+
+    def test_json_with_benchmark(
+        self, csv_file: Path, benchmark_csv: Path, tmp_path: Path, monkeypatch
+    ):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--benchmark",
+                str(benchmark_csv),
+                "--format",
+                "json",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["benchmark"] is not None
+        assert payload["comparison"] is not None
+
+    def test_markdown_with_benchmark(
+        self, csv_file: Path, benchmark_csv: Path, tmp_path: Path, monkeypatch
+    ):
+        out = tmp_path / "out.md"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--benchmark",
+                str(benchmark_csv),
+                "--format",
+                "markdown",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        text = out.read_text(encoding="utf-8")
+        assert "| Metric | Strategy | Benchmark |" in text
 
     def test_custom_title_appears_in_output(
         self, csv_file: Path, tmp_path: Path, monkeypatch

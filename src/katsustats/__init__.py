@@ -5,9 +5,11 @@ Usage:
     import katsustats
     katsustats.reports.full(returns, benchmark)              # console + plots
     katsustats.reports.html(returns, output="report.html")   # HTML report
+    katsustats.reports.json(returns, output="report.json")   # JSON report
+    katsustats.reports.markdown(returns, output="report.md") # Markdown report
 
     # Flat imports also work:
-    from katsustats import sharpe, plot_cumulative_returns, html
+    from katsustats import sharpe, plot_cumulative_returns, html, json_report, markdown_report
 """
 
 from __future__ import annotations
@@ -31,6 +33,8 @@ from .plots import (
 
 # reports
 from .reports import full, html
+from .reports import json as json_report
+from .reports import markdown as markdown_report
 
 # stats
 from .stats import (
@@ -145,4 +149,6 @@ __all__ = [
     # reports
     "full",
     "html",
+    "json_report",
+    "markdown_report",
 ]

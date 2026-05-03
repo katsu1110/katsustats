@@ -15,6 +15,8 @@ Highlights:
 - Polars-first API with pandas input support
 - Benchmark-aware performance comparison
 - Self-contained offline HTML reports
+- AI-friendly structured JSON reports
+- Readable Markdown summaries for humans and agents
 - Functional modules for `stats`, `plots`, and `reports`
 
 ## Preview
@@ -187,6 +189,12 @@ Generate an HTML tearsheet directly from a CSV or Parquet file — no script nee
 # From a CSV file (date and returns columns)
 katsustats report trades.csv -o report.html
 
+# Structured JSON for AI agents / downstream tooling
+katsustats report trades.csv --format json -o report.json
+
+# Markdown summary for humans and agents
+katsustats report trades.csv --format markdown -o report.md
+
 # Custom column names
 katsustats report trades.csv --date-col day --returns-col pnl -o report.html
 
@@ -197,7 +205,7 @@ katsustats report trades.csv --benchmark benchmark.csv --title "My Strategy" -o 
 katsustats report trades.parquet --rf 0.04 -o report.html
 ```
 
-If `-o` is omitted the report is written alongside the input file (e.g. `trades.html`).
+If `-o` is omitted the report is written alongside the input file (for example `trades.html`, `trades.json`, or `trades.md`).
 
 ## HTML report
 
@@ -214,6 +222,39 @@ html_str = katsustats.reports.html(returns, title="My Strategy")
 The report includes headline metric cards, performance tables, period performance, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
 
 When a benchmark is provided, the HTML report also includes regime analysis.
+
+## JSON report
+
+Generate an AI-friendly structured JSON report:
+
+```python
+# Save to file
+katsustats.reports.json(returns, benchmark=benchmark, title="My Strategy", output="report.json")
+
+# Or get JSON string
+json_str = katsustats.reports.json(returns, title="My Strategy")
+```
+
+The JSON output is optimized for LLMs, agents, and other automation tools. It
+includes raw numeric metrics, structured period performance, top drawdowns,
+day-of-week statistics, and regime analysis when a benchmark is provided.
+
+## Markdown report
+
+Generate a Markdown backtest summary:
+
+```python
+# Save to file
+katsustats.reports.markdown(returns, benchmark=benchmark, title="My Strategy", output="report.md")
+
+# Or get Markdown string
+md_str = katsustats.reports.markdown(returns, title="My Strategy")
+```
+
+The Markdown output is designed to be readable in editors, GitHub, chat tools,
+and agent workflows. It includes an overview, headline metrics, performance
+tables, period performance, top drawdowns, day-of-week statistics, and optional
+regime analysis.
 
 ## Using individual modules
 

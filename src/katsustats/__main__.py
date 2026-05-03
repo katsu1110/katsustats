@@ -55,8 +55,16 @@ def _cmd_report(args: argparse.Namespace) -> None:
             args.benchmark_returns_col,
         )
 
-    output = args.output or str(Path(args.file).with_suffix(".html"))
-    reports.html(
+    _format_fn = {
+        "html": reports.html,
+        "json": reports.json,
+        "markdown": reports.markdown,
+    }
+    _format_suffix = {"html": ".html", "json": ".json", "markdown": ".md"}
+    output = args.output or str(
+        Path(args.file).with_suffix(_format_suffix[args.format])
+    )
+    _format_fn[args.format](
         df,
         benchmark=benchmark,
         rf=args.rf,
@@ -76,7 +84,7 @@ def main() -> None:
 
     p_report = sub.add_parser(
         "report",
-        help="Generate a self-contained HTML tearsheet from a CSV or Parquet file.",
+        help="Generate an HTML, JSON, or Markdown backtest report from a CSV or Parquet file.",
     )
     p_report.add_argument("file", help="Path to a .csv or .parquet returns file.")
     p_report.add_argument(
@@ -86,7 +94,13 @@ def main() -> None:
         "-o",
         "--output",
         default=None,
-        help="Output HTML file path (default: <file>.html).",
+        help="Output file path (default: <file>.html, <file>.json, or <file>.md).",
+    )
+    p_report.add_argument(
+        "--format",
+        choices=["html", "json", "markdown"],
+        default="html",
+        help="Output report format (default: html).",
     )
     p_report.add_argument(
         "--date-col",
