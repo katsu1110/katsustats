@@ -1,0 +1,254 @@
+{
+  "metadata": {
+    "title": "BTC vs ETH",
+    "start_date": "2022-01-01",
+    "end_date": "2025-12-30",
+    "n_days": 1460,
+    "rf": 0.0,
+    "periods": 252,
+    "has_benchmark": true
+  },
+  "strategy": {
+    "summary": {
+      "total_return": 1.3408095836639404,
+      "cagr": 0.1581200983586415,
+      "sharpe": 0.5562500582400564,
+      "sortino": 0.8091295490320113,
+      "max_drawdown": -0.6407107710838318,
+      "calmar": 0.24678857527424455,
+      "volatility": 0.4315799944876019,
+      "win_rate": 0.5150684931506849,
+      "profit_factor": 1.1079412442571965,
+      "best_day": 0.1582939624786377,
+      "worst_day": -0.15004755556583405,
+      "avg_win": 0.01898430889559314,
+      "avg_loss": -0.018199631945732354,
+      "value_at_risk": -0.04048852622509003,
+      "cvar": -0.06296874501117289,
+      "recovery_factor": 2.092690874223662,
+      "skewness": -0.011536267889266852,
+      "kurtosis": 4.066085634445822,
+      "best_month": 0.49878990650177,
+      "worst_month": -0.32337766885757446,
+      "best_year": 1.7777714729309082,
+      "worst_year": -0.6066370010375977,
+      "positive_months_pct": 0.5833333333333334,
+      "positive_years_pct": 0.5
+    },
+    "period_performance": {
+      "MTD": {
+        "strategy": 0.030533671379089355
+      },
+      "QTD": {
+        "strategy": -0.21107810735702515
+      },
+      "YTD": {
+        "strategy": -0.09348279237747192
+      },
+      "1Y": {
+        "strategy": -0.08765697479248047
+      },
+      "3Y": {
+        "strategy": 4.967258453369141
+      },
+      "5Y": {
+        "strategy": null
+      },
+      "SI": {
+        "strategy": 1.3461143970489502
+      }
+    }
+  },
+  "benchmark": {
+    "summary": {
+      "total_return": -0.04127633571624756,
+      "cagr": -0.00725416625694697,
+      "sharpe": 0.2829321727212895,
+      "sortino": 0.40695959122184017,
+      "max_drawdown": -0.7284682393074036,
+      "calmar": -0.009958109174181596,
+      "volatility": 0.591070197695107,
+      "win_rate": 0.5222755311857437,
+      "profit_factor": 1.0531186649852995,
+      "best_day": 0.260390043258667,
+      "worst_day": -0.1864221841096878,
+      "avg_win": 0.025191363754775705,
+      "avg_loss": -0.026151498568330735,
+      "value_at_risk": -0.05921700969338417,
+      "cvar": -0.08638707716783432,
+      "recovery_factor": -0.05666181926543748,
+      "skewness": 0.18359296953386453,
+      "kurtosis": 4.886007337034611,
+      "best_month": 0.5285887718200684,
+      "worst_month": -0.380215048789978,
+      "best_year": 1.0321977138519287,
+      "worst_year": -0.6470886468887329,
+      "positive_months_pct": 0.5416666666666666,
+      "positive_years_pct": 0.5
+    },
+    "period_performance": {
+      "MTD": {
+        "benchmark": 0.08549439907073975
+      },
+      "QTD": {
+        "benchmark": -0.27011436223983765
+      },
+      "YTD": {
+        "benchmark": -0.16033083200454712
+      },
+      "1Y": {
+        "benchmark": -0.16597068309783936
+      },
+      "3Y": {
+        "benchmark": 1.7280359268188477
+      },
+      "5Y": {
+        "benchmark": null
+      },
+      "SI": {
+        "benchmark": -0.04127633571624756
+      }
+    }
+  },
+  "comparison": {
+    "alpha": 0.1388752651400864,
+    "beta": 0.6084092583008829,
+    "correlation": 0.832965014041662,
+    "information_ratio": 0.22063495833549818,
+    "excess_return": 1.3873907327651978
+  },
+  "drawdowns": [
+    {
+      "start": "2022-03-27",
+      "trough": "2022-12-29",
+      "recovery": "2023-12-03",
+      "max_dd": -0.6407107710838318,
+      "drawdown_days": 277,
+      "recovery_days": 339
+    },
+    {
+      "start": "2024-06-04",
+      "trough": "2024-09-05",
+      "recovery": "2024-11-05",
+      "max_dd": -0.3264164924621582,
+      "drawdown_days": 93,
+      "recovery_days": 61
+    },
+    {
+      "start": "2025-01-18",
+      "trough": "2025-04-07",
+      "recovery": "2025-07-10",
+      "max_dd": -0.3220112919807434,
+      "drawdown_days": 79,
+      "recovery_days": 94
+    },
+    {
+      "start": "2025-10-05",
+      "trough": "2025-12-17",
+      "recovery": null,
+      "max_dd": -0.30200067162513733,
+      "drawdown_days": 73,
+      "recovery_days": null
+    },
+    {
+      "start": "2022-01-01",
+      "trough": "2022-01-22",
+      "recovery": "2022-03-24",
+      "max_dd": -0.2578044533729553,
+      "drawdown_days": 21,
+      "recovery_days": 61
+    }
+  ],
+  "day_of_week_stats": [
+    {
+      "dow": 1,
+      "mean_return": 0.0013108360581099987,
+      "win_rate": 0.5119617224880383,
+      "total_return": 0.20425629615783691,
+      "count": 209,
+      "dow_name": "Mon"
+    },
+    {
+      "dow": 2,
+      "mean_return": 0.003715173341333866,
+      "win_rate": 0.5119617224880383,
+      "total_return": 0.9851131439208984,
+      "count": 209,
+      "dow_name": "Tue"
+    },
+    {
+      "dow": 3,
+      "mean_return": -0.0026935883797705173,
+      "win_rate": 0.4567307692307692,
+      "total_return": -0.47162920236587524,
+      "count": 208,
+      "dow_name": "Wed"
+    },
+    {
+      "dow": 4,
+      "mean_return": 0.0002728704421315342,
+      "win_rate": 0.49038461538461536,
+      "total_return": -0.038283705711364746,
+      "count": 208,
+      "dow_name": "Thu"
+    },
+    {
+      "dow": 5,
+      "mean_return": -0.0002188230282627046,
+      "win_rate": 0.5961538461538461,
+      "total_return": -0.0725662112236023,
+      "count": 208,
+      "dow_name": "Fri"
+    },
+    {
+      "dow": 6,
+      "mean_return": 0.002248106524348259,
+      "win_rate": 0.5358851674641149,
+      "total_return": 0.5347944498062134,
+      "count": 209,
+      "dow_name": "Sat"
+    },
+    {
+      "dow": 7,
+      "mean_return": 0.0020076322834938765,
+      "win_rate": 0.5023923444976076,
+      "total_return": 0.35376155376434326,
+      "count": 209,
+      "dow_name": "Sun"
+    }
+  ],
+  "regime_analysis": [
+    {
+      "regime": "bull_low_vol",
+      "n_days": 496,
+      "cagr": 1.3654963409985887,
+      "sharpe": 2.4318190552311654,
+      "max_drawdown": -0.19239717721939087,
+      "win_rate": 0.5483870967741935
+    },
+    {
+      "regime": "bull_high_vol",
+      "n_days": 216,
+      "cagr": 0.053878786651807786,
+      "sharpe": 0.3244911136698291,
+      "max_drawdown": -0.15182709693908691,
+      "win_rate": 0.5370370370370371
+    },
+    {
+      "regime": "bear_low_vol",
+      "n_days": 185,
+      "cagr": 0.06091569541524389,
+      "sharpe": 0.34473268073092117,
+      "max_drawdown": -0.31655821204185486,
+      "win_rate": 0.5081081081081081
+    },
+    {
+      "regime": "bear_high_vol",
+      "n_days": 363,
+      "cagr": -0.24069334141823262,
+      "sharpe": -0.4168328151549539,
+      "max_drawdown": -0.4246961176395416,
+      "win_rate": 0.49586776859504134
+    }
+  ]
+}
