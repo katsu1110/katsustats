@@ -25,7 +25,7 @@ uv sync --dev   # includes pytest + ruff
 - Python 3.13 (`.python-version`), requires >=3.9
 - Build backend: hatchling (src layout)
 - Dependencies: polars, numpy, matplotlib
-- Dev dependencies: pytest, ruff, pandas
+- Dev dependencies: pytest, ruff, pandas, pre-commit
 
 ## Build
 
@@ -36,9 +36,9 @@ uv build
 ## Tests and linting
 
 ```bash
-uv run ruff check src/ tests/         # lint
+uv run ruff check src/ tests/          # lint
 uv run ruff format --check src/ tests/ # format check
-uv run pytest tests/ -v               # 265 tests across stats/plots/reports/cli
+uv run pytest tests/ -v                # tests across stats/plots/reports/cli
 ```
 
 CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and ruff checks must pass before merging.
@@ -55,3 +55,7 @@ CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and
 - Plot styling centralized in `_COLORS` dict with `_apply_style()` / `_add_title()` helpers
 - Purely functional — no OOP
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
+
+## Slash Commands (Claude Code)
+
+- `/publish` — cut a new PyPI release (bumps version, commits, creates GitHub release that triggers the publish workflow)
