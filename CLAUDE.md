@@ -9,7 +9,7 @@ katsustats is a Python library and CLI for generating backtest reports from fina
 Functional design in `src/katsustats/`:
 
 - `stats.py` — Pure metric computation (Sharpe, CAGR, drawdowns, etc.)
-- `plots.py` — Matplotlib chart generation (8 chart types)
+- `plots.py` — Matplotlib chart generation (13 chart types)
 - `reports.py` — Orchestration: `full()` for dict output, `html()` for HTML report
 - `_dataframe.py` — Input normalisation: `ensure_polars()` converts pandas DataFrames, pandas Series (with DatetimeIndex), and Polars DataFrames to the canonical `["date", "returns"]` Polars frame
 - `__main__.py` — CLI entry point (`katsustats report`); reads CSV/Parquet and calls `reports.html()`
