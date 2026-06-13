@@ -2,7 +2,7 @@
 
 ## Project overview
 
-katsustats is a Python library and CLI for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "returns"]` columns (or a pandas DataFrame/Series) and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML reports.
+katsustats is a Python library and CLI for generating backtest reports from financial return series. It takes a Polars DataFrame with `["date", "returns"]` columns (or a pandas DataFrame/Series) and produces summary metrics, drawdown analysis, matplotlib charts, and self-contained HTML, JSON, or Markdown reports.
 
 ## Architecture
 
@@ -10,9 +10,9 @@ Functional design in `src/katsustats/`:
 
 - `stats.py` — Pure metric computation (Sharpe, CAGR, drawdowns, etc.)
 - `plots.py` — Matplotlib chart generation (13 chart types)
-- `reports.py` — Orchestration: `full()` for dict output, `html()` for HTML report
+- `reports.py` — Orchestration: `full()` for dict output, `html()` for self-contained HTML, `json()` for structured JSON, `markdown()` for Markdown tables
 - `_dataframe.py` — Input normalisation: `ensure_polars()` converts pandas DataFrames, pandas Series (with DatetimeIndex), and Polars DataFrames to the canonical `["date", "returns"]` Polars frame
-- `__main__.py` — CLI entry point (`katsustats report`); reads CSV/Parquet and calls `reports.html()`
+- `__main__.py` — CLI entry point (`katsustats report`); reads CSV/Parquet and dispatches to `reports.html()`, `reports.json()`, or `reports.markdown()` via `--format`
 
 No classes. All public functions accept a Polars DataFrame, pandas DataFrame, or pandas Series with `date` and `returns` data.
 
