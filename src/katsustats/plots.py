@@ -13,6 +13,7 @@ import numpy as np
 import polars as pl
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
+from matplotlib.patches import FancyBboxPatch
 
 from . import stats
 from ._dataframe import DataFrameLike, ensure_polars
@@ -965,7 +966,6 @@ def plot_monte_carlo_distribution(
 # ---------------------------------------------------------------------------
 
 _WINDOW_MAP: dict[str, int] = {
-    "1D": 1,
     "1W": 5,
     "2W": 10,
     "1M": 21,
@@ -998,32 +998,46 @@ def _parse_window(window: str | int) -> int:
 
 def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
     """Draw a metric tile: colored background, bold value, small label."""
-    ax.set_facecolor(bg_color)
+    ax.set_facecolor("none")
     for spine in ax.spines.values():
         spine.set_visible(False)
     ax.set_xticks([])
     ax.set_yticks([])
+
+    rect = FancyBboxPatch(
+        (0, 0),
+        1,
+        1,
+        boxstyle="round,pad=0,rounding_size=0.15",
+        ec="none",
+        fc=bg_color,
+        transform=ax.transAxes,
+        zorder=0,
+    )
+    ax.add_patch(rect)
+
     ax.text(
         0.5,
-        0.58,
+        0.62,
         value_str,
         transform=ax.transAxes,
         ha="center",
         va="center",
-        fontsize=18,
+        fontsize=22,
         fontweight="bold",
         color="white",
     )
     ax.text(
         0.5,
-        0.18,
-        label,
+        0.24,
+        label.upper(),
         transform=ax.transAxes,
         ha="center",
         va="center",
-        fontsize=8,
+        fontsize=9,
+        fontweight="bold",
         color="white",
-        alpha=0.88,
+        alpha=0.90,
     )
 
 
@@ -1058,35 +1072,99 @@ def plot_snapshot(
     wr_str = f"{wr_val:.2%}"
 
     fig = plt.figure(figsize=figsize, facecolor="white")
-    gs = fig.add_gridspec(2, 4, height_ratios=[1, 2.5], hspace=0.45, wspace=0.35)
+    gs = fig.add_gridspec(2, 4, height_ratios=[1, 2.5], hspace=0.20, wspace=0.10)
     ax_cards = [fig.add_subplot(gs[0, i]) for i in range(4)]
     ax_curve = fig.add_subplot(gs[1, :])
+
+    # Modern vibrant colors for cards
+    c_pos_card = "#10B981"  # Emerald
+    c_neg_card = "#EF4444"  # Red
+    c_neu_card = "#374151"  # Sleek dark gray
 
     card_specs = [
         (
             ret_str,
             "Return",
-            _COLORS["positive"] if ret_val >= 0 else _COLORS["negative"],
+            c_pos_card if ret_val >= 0 else c_neg_card,
         ),
-        (sharpe_str, "Sharpe", _COLORS["neutral"]),
-        (mdd_str, "Max DD", _COLORS["neutral"]),
-        (wr_str, "Win Rate", _COLORS["neutral"]),
+        (sharpe_str, "Sharpe", c_neu_card),
+        (mdd_str, "Max DD", c_neu_card),
+        (wr_str, "Win Rate", c_neu_card),
     ]
     for ax, (val_s, lbl, bg) in zip(ax_cards, card_specs):
         _draw_metric_card(ax, val_s, lbl, bg)
 
     r = stats._to_returns(df_window)
-    cumval_raw = stats._cumulative_value(r).to_numpy()
     dates_raw = df_window.get_column("date").to_numpy()
-    # Prepend a 1.0 baseline at a synthetic prior date so the curve starts at 0%
-    cumval = np.concatenate([[1.0], cumval_raw])
+    # Cumulative return (fraction), prepend 0.0 so curve starts at the 0% baseline
+    cumret_raw = stats._cumulative(r).to_numpy()
+    cumret = np.concatenate([[0.0], cumret_raw])
     dates = np.concatenate([[dates_raw[0] - np.timedelta64(1, "D")], dates_raw])
+
+    # Modern chart colors
+    c_pos = "#10B981"  # Emerald
+    c_neg = "#EF4444"  # Red
+    c_line = "#374151"  # Sleek dark gray (matches neutral cards)
+
     _apply_style(ax_curve, fig)
-    ax_curve.plot(dates, cumval, lw=1.8, color=_COLORS["strategy"])
-    ax_curve.axhline(1.0, color=_COLORS["neutral"], lw=0.8, ls="--")
-    ax_curve.yaxis.set_major_formatter(
-        mticker.FuncFormatter(lambda x, _: f"{x - 1:.1%}")
+    # Clean, modern panel: white background, light gray y-grid
+    ax_curve.set_facecolor("white")
+    ax_curve.grid(color="#F3F4F6", linewidth=1.0, axis="y", zorder=0)
+    for spine in ax_curve.spines.values():
+        spine.set_visible(False)
+    ax_curve.spines["bottom"].set_visible(True)
+    ax_curve.spines["bottom"].set_color("#E5E7EB")
+    ax_curve.spines["bottom"].set_linewidth(1.5)
+
+    if n_rows <= 126:
+        r_vals = r.to_numpy()
+        bar_colors = [c_pos if v >= 0 else c_neg for v in r_vals]
+        ax_curve.bar(
+            dates_raw,
+            r_vals,
+            color=bar_colors,
+            alpha=0.6,
+            width=0.6,
+            edgecolor="none",
+            zorder=1,
+        )
+
+    # Area fill under/over the 0% line
+    ax_curve.fill_between(
+        dates,
+        cumret,
+        0,
+        where=cumret >= 0,
+        color=c_pos,
+        alpha=0.15,
+        interpolate=True,
+        zorder=1,
     )
+    ax_curve.fill_between(
+        dates,
+        cumret,
+        0,
+        where=cumret < 0,
+        color=c_neg,
+        alpha=0.15,
+        interpolate=True,
+        zorder=1,
+    )
+    # Sleek line chart with smaller markers or none if many points
+    marker = "o" if n_rows <= 40 else ""
+    ax_curve.plot(
+        dates,
+        cumret,
+        lw=2.2,
+        color=c_line,
+        marker=marker,
+        markersize=3,
+        markerfacecolor="white",
+        markeredgewidth=1.5,
+        zorder=3,
+    )
+    ax_curve.axhline(0, color="#9CA3AF", lw=1.2, ls="--", zorder=2)
+    ax_curve.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     fig.autofmt_xdate()
 
     date_start = dates_raw[0]
@@ -1096,11 +1174,13 @@ def plot_snapshot(
         if (isinstance(window, str) and window.upper() in _WINDOW_MAP)
         else f"{n_rows}d"
     )
+
+    # Use generic hyphen instead of missing glyph \N{RIGHTWARDS ARROW}
     fig.suptitle(
-        f"{title}  ·  {window_label}  ({date_start} → {date_end})",
-        fontsize=11,
+        f"{title}  ·  {window_label}  ({date_start} to {date_end})",
+        fontsize=12,
         fontweight="bold",
-        color=_COLORS["text"],
-        y=0.99,
+        color="#111827",
+        y=1.02,
     )
     return fig
