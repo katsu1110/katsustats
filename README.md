@@ -297,6 +297,27 @@ summary = katsustats.stats.monte_carlo_summary(
 )
 ```
 
+## Snapshot report
+
+Generate a compact, single-image performance card (a "snapshot") showing key metrics, an equity curve, and underwater drawdowns. This is perfect for quick sharing on social media or in chat.
+
+**Via CLI:**
+```bash
+# Save a snapshot for the last 1 Month
+katsustats snapshot trades.csv --window 1M -o snapshot.png
+
+# Custom title and longer window
+katsustats snapshot trades.csv --title "My Strategy" --window 6M -o snapshot.png
+```
+
+**Via Python:**
+```python
+import katsustats
+
+fig = katsustats.plots.plot_snapshot(returns, window="6M", title="My Strategy")
+fig.savefig("snapshot.png")
+```
+
 ## Using individual modules
 
 You can also call the lower-level APIs directly:
