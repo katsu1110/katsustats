@@ -8,7 +8,7 @@ from pathlib import Path
 
 import polars as pl
 
-from katsustats import reports
+from katsustats import plots, reports
 
 
 def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
@@ -77,6 +77,20 @@ def _cmd_report(args: argparse.Namespace) -> None:
         mc_seed=args.mc_seed,
     )
     print(f"Report written to {output}")
+
+
+def _cmd_snapshot(args: argparse.Namespace) -> None:
+    df = _load(args.file, args.date_col, args.returns_col)
+    try:
+        fig = plots.plot_snapshot(df, window=args.window, title=args.title)
+    except (ValueError, TypeError) as exc:
+        sys.exit(str(exc))
+
+    output = args.output or str(
+        Path(args.file).parent / (Path(args.file).stem + "_snapshot.png")
+    )
+    fig.savefig(output, dpi=150, bbox_inches="tight")
+    print(f"Snapshot written to {output}")
 
 
 def main() -> None:
@@ -178,6 +192,39 @@ def main() -> None:
         help="Return threshold for goal probability, e.g. 0.5 (default: None).",
     )
     p_report.set_defaults(func=_cmd_report)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="Save a compact performance card as a PNG image.",
+    )
+    p_snap.add_argument("file", help="Path to a .csv or .parquet returns file.")
+    p_snap.add_argument(
+        "--window",
+        default="1W",
+        help='Lookback window: "1D", "1W", "2W", "1M", "3M", or an integer (default: 1W).',
+    )
+    p_snap.add_argument(
+        "--title", default="Strategy", help="Card title (default: Strategy)."
+    )
+    p_snap.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Output PNG path (default: <file>_snapshot.png).",
+    )
+    p_snap.add_argument(
+        "--date-col",
+        default="date",
+        dest="date_col",
+        help="Name of the date column (default: date).",
+    )
+    p_snap.add_argument(
+        "--returns-col",
+        default="returns",
+        dest="returns_col",
+        help="Name of the returns column (default: returns).",
+    )
+    p_snap.set_defaults(func=_cmd_snapshot)
 
     args = parser.parse_args()
     args.func(args)

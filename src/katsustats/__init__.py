@@ -30,6 +30,7 @@ from .plots import (
     plot_returns_vs_benchmark,
     plot_rolling_sharpe,
     plot_rolling_volatility,
+    plot_snapshot,
     plot_yearly_returns,
 )
 
@@ -153,6 +154,7 @@ __all__ = [
     "plot_returns_vs_benchmark",
     "plot_rolling_sharpe",
     "plot_rolling_volatility",
+    "plot_snapshot",
     "plot_yearly_returns",
     # reports
     "full",

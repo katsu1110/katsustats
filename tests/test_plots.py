@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import polars as pl
 import pytest
@@ -9,6 +10,7 @@ from matplotlib.collections import PolyCollection
 from matplotlib.figure import Figure
 
 from katsustats import plots
+from katsustats.plots import _COLORS, _parse_window
 
 
 @pytest.fixture(autouse=True)
@@ -501,3 +503,105 @@ class TestPlotMonteCarloDistribution:
             sample_df, sims=20, seed=0, figsize=(8, 3)
         )
         assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
+# _parse_window
+# ---------------------------------------------------------------------------
+
+
+class TestParseWindow:
+    @pytest.mark.parametrize(
+        ("spec", "expected"),
+        [("1D", 1), ("1W", 5), ("2W", 10), ("1M", 21), ("3M", 63)],
+    )
+    def test_string_specs(self, spec, expected):
+        assert _parse_window(spec) == expected
+
+    def test_int_passthrough(self):
+        assert _parse_window(7) == 7
+
+    def test_integer_string(self):
+        assert _parse_window("10") == 10
+
+    def test_bad_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="Unrecognised window"):
+            _parse_window("2Y")
+
+    def test_zero_raises_assertion_error(self):
+        with pytest.raises(AssertionError):
+            _parse_window(0)
+
+
+# ---------------------------------------------------------------------------
+# plot_snapshot
+# ---------------------------------------------------------------------------
+
+
+class TestPlotSnapshot:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_axes_count(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        assert len(fig.axes) == 5
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, figsize=(8, 4))
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+    def test_card_axes_no_ticks(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        for ax in fig.axes[:4]:
+            assert len(ax.get_xticks()) == 0
+            assert len(ax.get_yticks()) == 0
+
+    def test_equity_curve_has_line(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window=5)
+        ax_curve = fig.axes[4]
+        lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 1
+
+    def test_window_1d_uses_one_row(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window="1D")
+        ax_curve = fig.axes[4]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 1]
+        assert len(data_lines) >= 1
+
+    def test_window_int_uses_n_rows(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window=5)
+        ax_curve = fig.axes[4]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 5]
+        assert len(data_lines) >= 1
+
+    @pytest.mark.parametrize("spec", ["1D", "1W", "2W", "1M", "3M"])
+    def test_window_strings_all_return_figure(self, sample_df, spec):
+        fig = plots.plot_snapshot(sample_df, window=spec)
+        assert isinstance(fig, Figure)
+
+    def test_positive_return_card_is_green(self, all_positive_df):
+        fig = plots.plot_snapshot(all_positive_df)
+        face = mcolors.to_hex(fig.axes[0].get_facecolor()[:3])
+        assert face == _COLORS["positive"].lower()
+
+    def test_negative_return_card_is_red(self, all_negative_df):
+        fig = plots.plot_snapshot(all_negative_df)
+        face = mcolors.to_hex(fig.axes[0].get_facecolor()[:3])
+        assert face == _COLORS["negative"].lower()
+
+    def test_single_row_sharpe_shows_dash(self, single_row_df):
+        fig = plots.plot_snapshot(single_row_df, window="1D")
+        sharpe_ax = fig.axes[1]
+        texts = [t.get_text() for t in sharpe_ax.texts]
+        assert any("—" in t for t in texts)
+
+    def test_accepts_pandas_input(self, sample_pandas_df):
+        fig = plots.plot_snapshot(sample_pandas_df)
+        assert isinstance(fig, Figure)
+
+    def test_suptitle_contains_title_and_window(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, title="MyStrat", window="1W")
+        sup = fig._suptitle.get_text()
+        assert "MyStrat" in sup
+        assert "1W" in sup

@@ -958,3 +958,148 @@ def plot_monte_carlo_distribution(
     _add_title(ax, fig, f"Max Drawdown Distribution ({sims:,} sims)")
     fig.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Snapshot helpers
+# ---------------------------------------------------------------------------
+
+_WINDOW_MAP: dict[str, int] = {
+    "1D": 1,
+    "1W": 5,
+    "2W": 10,
+    "1M": 21,
+    "3M": 63,
+}
+
+
+def _parse_window(window: str | int) -> int:
+    """Convert a window spec to a trailing row count."""
+    if isinstance(window, int):
+        assert window >= 1, "window must be >= 1"
+        return window
+    if isinstance(window, str):
+        upper = window.upper()
+        if upper in _WINDOW_MAP:
+            return _WINDOW_MAP[upper]
+        try:
+            n = int(upper)
+            assert n >= 1, "window must be >= 1"
+            return n
+        except ValueError:
+            raise ValueError(
+                f"Unrecognised window {window!r}. "
+                f"Use one of {list(_WINDOW_MAP)} or an integer."
+            )
+    raise TypeError(f"window must be str or int, got {type(window).__name__}")
+
+
+def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
+    """Draw a metric tile: colored background, bold value, small label."""
+    ax.set_facecolor(bg_color)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.text(
+        0.5,
+        0.58,
+        value_str,
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=18,
+        fontweight="bold",
+        color="white",
+    )
+    ax.text(
+        0.5,
+        0.18,
+        label,
+        transform=ax.transAxes,
+        ha="center",
+        va="center",
+        fontsize=8,
+        color="white",
+        alpha=0.88,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plot: Snapshot (compact performance card)
+# ---------------------------------------------------------------------------
+
+
+def plot_snapshot(
+    df: DataFrameLike,
+    window: str | int = "1W",
+    title: str = "Strategy",
+    figsize: tuple = (10, 6),
+) -> Figure:
+    """Compact performance card: 4 metric tiles + equity curve for the given window.
+
+    Args:
+        df:      Polars or pandas DataFrame with ["date", "returns"] columns.
+        window:  Lookback window — "1D", "1W", "2W", "1M", "3M", or an int
+                 specifying the number of trailing rows to include.
+        title:   Card title shown in the suptitle.
+        figsize: Figure size in inches (width, height).
+
+    Returns:
+        A matplotlib Figure suitable for saving with ``fig.savefig()``.
+    """
+    df = ensure_polars(df)
+    n_rows = _parse_window(window)
+    df_window = df.tail(n_rows)
+
+    ret_val = stats.total_return(df_window)
+    mdd_val = stats.max_drawdown(df_window)
+    wr_val = stats.win_rate(df_window)
+    sharpe_val = stats.sharpe(df_window)
+
+    ret_str = f"{ret_val:.2%}"
+    sharpe_str = "—" if df_window.height < 2 else f"{sharpe_val:.2f}"
+    mdd_str = f"{mdd_val:.2%}"
+    wr_str = f"{wr_val:.2%}"
+
+    fig = plt.figure(figsize=figsize, facecolor="white")
+    gs = fig.add_gridspec(2, 4, height_ratios=[1, 2.5], hspace=0.45, wspace=0.35)
+    ax_cards = [fig.add_subplot(gs[0, i]) for i in range(4)]
+    ax_curve = fig.add_subplot(gs[1, :])
+
+    card_specs = [
+        (
+            ret_str,
+            "Return",
+            _COLORS["positive"] if ret_val >= 0 else _COLORS["negative"],
+        ),
+        (sharpe_str, "Sharpe", _COLORS["neutral"]),
+        (mdd_str, "Max DD", _COLORS["neutral"]),
+        (wr_str, "Win Rate", _COLORS["neutral"]),
+    ]
+    for ax, (val_s, lbl, bg) in zip(ax_cards, card_specs):
+        _draw_metric_card(ax, val_s, lbl, bg)
+
+    r = stats._to_returns(df_window)
+    cumval = stats._cumulative_value(r).to_numpy()
+    dates = df_window.get_column("date").to_numpy()
+    _apply_style(ax_curve, fig)
+    ax_curve.plot(dates, cumval, lw=1.8, color=_COLORS["strategy"])
+    ax_curve.axhline(1.0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax_curve.yaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda x, _: f"{x - 1:.1%}")
+    )
+    fig.autofmt_xdate()
+
+    date_start = df_window.get_column("date").min()
+    date_end = df_window.get_column("date").max()
+    window_label = window if isinstance(window, str) else f"{n_rows}d"
+    fig.suptitle(
+        f"{title}  ·  {window_label}  ({date_start} → {date_end})",
+        fontsize=11,
+        fontweight="bold",
+        color=_COLORS["text"],
+        y=0.99,
+    )
+    fig.set_facecolor("white")
+    return fig
