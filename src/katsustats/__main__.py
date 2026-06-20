@@ -203,7 +203,7 @@ def main() -> None:
     p_snap.add_argument(
         "--window",
         default="1W",
-        help='Lookback window: "1D", "1W", "2W", "1M", "3M", or an integer (default: 1W).',
+        help='Lookback window: "1W", "2W", "1M", "3M", or an integer (default: 1W).',
     )
     p_snap.add_argument(
         "--title", default="Strategy", help="Card title (default: Strategy)."

@@ -336,7 +336,6 @@ class TestPlotDowReturns:
         ax = fig.axes[0]
         boxes = [p for p in ax.patches if hasattr(p, "get_facecolor")]
         colors = [mcolors.to_hex(p.get_facecolor()[:3]) for p in boxes]
-        from katsustats.plots import _COLORS
 
         pos = mcolors.to_hex(mcolors.to_rgb(_COLORS["positive"]))
         neg = mcolors.to_hex(mcolors.to_rgb(_COLORS["negative"]))
@@ -513,10 +512,14 @@ class TestPlotMonteCarloDistribution:
 class TestParseWindow:
     @pytest.mark.parametrize(
         ("spec", "expected"),
-        [("1D", 1), ("1W", 5), ("2W", 10), ("1M", 21), ("3M", 63)],
+        [("1W", 5), ("2W", 10), ("1M", 21), ("3M", 63)],
     )
     def test_string_specs(self, spec, expected):
         assert _parse_window(spec) == expected
+
+    def test_1d_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="Unrecognised window"):
+            _parse_window("1D")
 
     def test_int_passthrough(self):
         assert _parse_window(7) == 7
@@ -549,7 +552,7 @@ class TestPlotSnapshot:
 
     def test_axes_count(self, sample_df):
         fig = plots.plot_snapshot(sample_df)
-        assert len(fig.axes) == 5
+        assert len(fig.axes) == 6
 
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_snapshot(sample_df, figsize=(8, 4))
@@ -567,9 +570,9 @@ class TestPlotSnapshot:
         lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) > 0]
         assert len(lines) >= 1
 
-    def test_window_1d_uses_one_row(self, sample_df):
+    def test_window_single_int_uses_two_curve_points(self, sample_df):
         # curve has n+1 points: baseline prepended at synthetic prior date
-        fig = plots.plot_snapshot(sample_df, window="1D")
+        fig = plots.plot_snapshot(sample_df, window=1)
         ax_curve = fig.axes[4]
         data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 2]
         assert len(data_lines) >= 1
@@ -581,23 +584,23 @@ class TestPlotSnapshot:
         data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 6]
         assert len(data_lines) >= 1
 
-    @pytest.mark.parametrize("spec", ["1D", "1W", "2W", "1M", "3M"])
+    @pytest.mark.parametrize("spec", ["1W", "2W", "1M", "3M"])
     def test_window_strings_all_return_figure(self, sample_df, spec):
         fig = plots.plot_snapshot(sample_df, window=spec)
         assert isinstance(fig, Figure)
 
     def test_positive_return_card_is_green(self, all_positive_df):
         fig = plots.plot_snapshot(all_positive_df)
-        face = mcolors.to_hex(fig.axes[0].get_facecolor()[:3])
-        assert face == _COLORS["positive"].lower()
+        face = mcolors.to_hex(fig.axes[0].patches[0].get_facecolor()[:3])
+        assert face == "#10b981"
 
     def test_negative_return_card_is_red(self, all_negative_df):
         fig = plots.plot_snapshot(all_negative_df)
-        face = mcolors.to_hex(fig.axes[0].get_facecolor()[:3])
-        assert face == _COLORS["negative"].lower()
+        face = mcolors.to_hex(fig.axes[0].patches[0].get_facecolor()[:3])
+        assert face == "#ef4444"
 
     def test_single_row_sharpe_shows_dash(self, single_row_df):
-        fig = plots.plot_snapshot(single_row_df, window="1D")
+        fig = plots.plot_snapshot(single_row_df, window=1)
         sharpe_ax = fig.axes[1]
         texts = [t.get_text() for t in sharpe_ax.texts]
         assert any("—" in t for t in texts)
@@ -611,3 +614,27 @@ class TestPlotSnapshot:
         sup = fig._suptitle.get_text()
         assert "MyStrat" in sup
         assert "1W" in sup
+
+    def test_daily_bars_present_for_short_window(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window="1W")
+        ax_curve = fig.axes[4]
+        assert len(ax_curve.containers) >= 1
+
+    def test_daily_bars_absent_for_long_window(self):
+        import pandas as pd
+
+        dates = pd.date_range("2023-01-01", periods=150)
+        df = pd.DataFrame({"date": dates, "returns": [0.01] * 150})
+        fig = plots.plot_snapshot(df, window=150)
+        ax_curve = fig.axes[4]
+        assert len(ax_curve.containers) == 0
+
+    def test_daily_bars_colors(self, all_positive_df, all_negative_df):
+        c_pos, c_neg = "#10b981", "#ef4444"
+        fig_pos = plots.plot_snapshot(all_positive_df, window="1W")
+        pos_colors = [p.get_facecolor() for p in fig_pos.axes[4].patches]
+        assert all(mcolors.to_hex(c[:3]) == c_pos for c in pos_colors)
+
+        fig_neg = plots.plot_snapshot(all_negative_df, window="1W")
+        neg_colors = [p.get_facecolor() for p in fig_neg.axes[4].patches]
+        assert all(mcolors.to_hex(c[:3]) == c_neg for c in neg_colors)
