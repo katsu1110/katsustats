@@ -1050,9 +1050,9 @@ def plot_snapshot(
     df: DataFrameLike,
     window: str | int = "1W",
     title: str = "Strategy",
-    figsize: tuple = (10, 6),
+    figsize: tuple = (10, 8),
 ) -> Figure:
-    """Compact performance card: equity curve and 4 metric tiles for the given window."""
+    """Compact performance card: equity curve, underwater drawdown, and 4 metric tiles for the given window."""
     df = ensure_polars(df)
     n_rows = _parse_window(window)
     df_window = df.tail(n_rows)
@@ -1072,9 +1072,10 @@ def plot_snapshot(
     wr_str = f"{wr_val:.2%}"
 
     fig = plt.figure(figsize=figsize, facecolor="white")
-    gs = fig.add_gridspec(2, 4, height_ratios=[1, 2.5], hspace=0.20, wspace=0.10)
+    gs = fig.add_gridspec(3, 4, height_ratios=[1, 2.5, 1.0], hspace=0.25, wspace=0.10)
     ax_cards = [fig.add_subplot(gs[0, i]) for i in range(4)]
     ax_curve = fig.add_subplot(gs[1, :])
+    ax_dd = fig.add_subplot(gs[2, :], sharex=ax_curve)
 
     # Modern vibrant colors for cards
     c_pos_card = "#10B981"  # Emerald
@@ -1096,18 +1097,26 @@ def plot_snapshot(
 
     r = stats._to_returns(df_window)
     dates_raw = df_window.get_column("date").to_numpy()
-    # Cumulative return (fraction), prepend 0.0 so curve starts at the 0% baseline
+
+    # Cumulative return (fraction)
     cumret_raw = stats._cumulative(r).to_numpy()
     cumret = np.concatenate([[0.0], cumret_raw])
     dates = np.concatenate([[dates_raw[0] - np.timedelta64(1, "D")], dates_raw])
+
+    # Drawdown
+    cumval = stats._cumulative_value(r).to_numpy()
+    running_max = np.maximum.accumulate(cumval)
+    cumval_full = np.concatenate([[1.0], cumval])
+    running_max_full = np.concatenate([[1.0], running_max])
+    dd_full = (cumval_full / running_max_full) - 1.0
 
     # Modern chart colors
     c_pos = "#10B981"  # Emerald
     c_neg = "#EF4444"  # Red
     c_line = "#374151"  # Sleek dark gray (matches neutral cards)
 
+    # Clean, modern panel for curve
     _apply_style(ax_curve, fig)
-    # Clean, modern panel: white background, light gray y-grid
     ax_curve.set_facecolor("white")
     ax_curve.grid(color="#F3F4F6", linewidth=1.0, axis="y", zorder=0)
     for spine in ax_curve.spines.values():
@@ -1115,6 +1124,19 @@ def plot_snapshot(
     ax_curve.spines["bottom"].set_visible(True)
     ax_curve.spines["bottom"].set_color("#E5E7EB")
     ax_curve.spines["bottom"].set_linewidth(1.5)
+
+    # Hide x-axis labels on the top curve panel
+    ax_curve.tick_params(labelbottom=False)
+
+    # Clean panel for drawdown
+    _apply_style(ax_dd, fig)
+    ax_dd.set_facecolor("white")
+    ax_dd.grid(color="#F3F4F6", linewidth=1.0, axis="y", zorder=0)
+    for spine in ax_dd.spines.values():
+        spine.set_visible(False)
+    ax_dd.spines["bottom"].set_visible(True)
+    ax_dd.spines["bottom"].set_color("#E5E7EB")
+    ax_dd.spines["bottom"].set_linewidth(1.5)
 
     if n_rows <= 126:
         r_vals = r.to_numpy()
@@ -1127,9 +1149,10 @@ def plot_snapshot(
             width=0.6,
             edgecolor="none",
             zorder=1,
+            label="Daily Return",
         )
 
-    # Area fill under/over the 0% line
+    # Equity curve fills and line
     ax_curve.fill_between(
         dates,
         cumret,
@@ -1150,7 +1173,6 @@ def plot_snapshot(
         interpolate=True,
         zorder=1,
     )
-    # Sleek line chart with smaller markers or none if many points
     marker = "o" if n_rows <= 40 else ""
     ax_curve.plot(
         dates,
@@ -1162,10 +1184,28 @@ def plot_snapshot(
         markerfacecolor="white",
         markeredgewidth=1.5,
         zorder=3,
+        label="Cumulative Return",
     )
     ax_curve.axhline(0, color="#9CA3AF", lw=1.2, ls="--", zorder=2)
     ax_curve.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    fig.autofmt_xdate()
+
+    # Drawdown fill
+    ax_dd.fill_between(dates, dd_full, 0, color=c_neg, alpha=0.3, zorder=1)
+    ax_dd.plot(dates, dd_full, color=c_neg, lw=1.0, zorder=2)
+    ax_dd.axhline(0, color="#9CA3AF", lw=1.2, ls="--", zorder=2)
+    ax_dd.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax_dd.set_ylabel("Drawdown", fontsize=9, color="#4B5563")
+
+    # Add a clean legend to the top chart
+    ax_curve.legend(
+        loc="upper left",
+        frameon=True,
+        facecolor="white",
+        edgecolor="#E5E7EB",
+        fontsize=9,
+    )
+
+    fig.autofmt_xdate(rotation=45)
 
     date_start = dates_raw[0]
     date_end = dates_raw[-1]
