@@ -528,9 +528,13 @@ class TestParseWindow:
         with pytest.raises(ValueError, match="Unrecognised window"):
             _parse_window("2Y")
 
-    def test_zero_raises_assertion_error(self):
-        with pytest.raises(AssertionError):
+    def test_zero_raises_value_error(self):
+        with pytest.raises(ValueError, match="window must be >= 1"):
             _parse_window(0)
+
+    def test_zero_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="window must be >= 1"):
+            _parse_window("0")
 
 
 # ---------------------------------------------------------------------------
@@ -564,15 +568,17 @@ class TestPlotSnapshot:
         assert len(lines) >= 1
 
     def test_window_1d_uses_one_row(self, sample_df):
+        # curve has n+1 points: baseline prepended at synthetic prior date
         fig = plots.plot_snapshot(sample_df, window="1D")
         ax_curve = fig.axes[4]
-        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 1]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 2]
         assert len(data_lines) >= 1
 
     def test_window_int_uses_n_rows(self, sample_df):
+        # curve has n+1 points: baseline prepended at synthetic prior date
         fig = plots.plot_snapshot(sample_df, window=5)
         ax_curve = fig.axes[4]
-        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 5]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 6]
         assert len(data_lines) >= 1
 
     @pytest.mark.parametrize("spec", ["1D", "1W", "2W", "1M", "3M"])

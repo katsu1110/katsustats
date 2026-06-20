@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import polars as pl
 
 from katsustats import plots, reports
@@ -90,6 +91,7 @@ def _cmd_snapshot(args: argparse.Namespace) -> None:
         Path(args.file).parent / (Path(args.file).stem + "_snapshot.png")
     )
     fig.savefig(output, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     print(f"Snapshot written to {output}")
 
 

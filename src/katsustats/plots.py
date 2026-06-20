@@ -976,7 +976,8 @@ _WINDOW_MAP: dict[str, int] = {
 def _parse_window(window: str | int) -> int:
     """Convert a window spec to a trailing row count."""
     if isinstance(window, int):
-        assert window >= 1, "window must be >= 1"
+        if window < 1:
+            raise ValueError("window must be >= 1")
         return window
     if isinstance(window, str):
         upper = window.upper()
@@ -984,13 +985,14 @@ def _parse_window(window: str | int) -> int:
             return _WINDOW_MAP[upper]
         try:
             n = int(upper)
-            assert n >= 1, "window must be >= 1"
-            return n
         except ValueError:
             raise ValueError(
                 f"Unrecognised window {window!r}. "
                 f"Use one of {list(_WINDOW_MAP)} or an integer."
             )
+        if n < 1:
+            raise ValueError("window must be >= 1")
+        return n
     raise TypeError(f"window must be str or int, got {type(window).__name__}")
 
 
@@ -1036,21 +1038,14 @@ def plot_snapshot(
     title: str = "Strategy",
     figsize: tuple = (10, 6),
 ) -> Figure:
-    """Compact performance card: 4 metric tiles + equity curve for the given window.
-
-    Args:
-        df:      Polars or pandas DataFrame with ["date", "returns"] columns.
-        window:  Lookback window — "1D", "1W", "2W", "1M", "3M", or an int
-                 specifying the number of trailing rows to include.
-        title:   Card title shown in the suptitle.
-        figsize: Figure size in inches (width, height).
-
-    Returns:
-        A matplotlib Figure suitable for saving with ``fig.savefig()``.
-    """
+    """Compact performance card: equity curve and 4 metric tiles for the given window."""
     df = ensure_polars(df)
     n_rows = _parse_window(window)
     df_window = df.tail(n_rows)
+    if df_window.height == 0:
+        raise ValueError(
+            "input DataFrame is empty; plot_snapshot requires at least 1 row"
+        )
 
     ret_val = stats.total_return(df_window)
     mdd_val = stats.max_drawdown(df_window)
@@ -1081,8 +1076,11 @@ def plot_snapshot(
         _draw_metric_card(ax, val_s, lbl, bg)
 
     r = stats._to_returns(df_window)
-    cumval = stats._cumulative_value(r).to_numpy()
-    dates = df_window.get_column("date").to_numpy()
+    cumval_raw = stats._cumulative_value(r).to_numpy()
+    dates_raw = df_window.get_column("date").to_numpy()
+    # Prepend a 1.0 baseline at a synthetic prior date so the curve starts at 0%
+    cumval = np.concatenate([[1.0], cumval_raw])
+    dates = np.concatenate([[dates_raw[0] - np.timedelta64(1, "D")], dates_raw])
     _apply_style(ax_curve, fig)
     ax_curve.plot(dates, cumval, lw=1.8, color=_COLORS["strategy"])
     ax_curve.axhline(1.0, color=_COLORS["neutral"], lw=0.8, ls="--")
@@ -1091,9 +1089,13 @@ def plot_snapshot(
     )
     fig.autofmt_xdate()
 
-    date_start = df_window.get_column("date").min()
-    date_end = df_window.get_column("date").max()
-    window_label = window if isinstance(window, str) else f"{n_rows}d"
+    date_start = dates_raw[0]
+    date_end = dates_raw[-1]
+    window_label = (
+        window
+        if (isinstance(window, str) and window.upper() in _WINDOW_MAP)
+        else f"{n_rows}d"
+    )
     fig.suptitle(
         f"{title}  ·  {window_label}  ({date_start} → {date_end})",
         fontsize=11,
@@ -1101,5 +1103,4 @@ def plot_snapshot(
         color=_COLORS["text"],
         y=0.99,
     )
-    fig.set_facecolor("white")
     return fig
