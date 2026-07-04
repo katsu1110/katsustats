@@ -32,13 +32,10 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Install PyInstaller
-        run: uv pip install pyinstaller
-
       - name: Build binary
         shell: bash
         run: >-
-          uv run pyinstaller
+          uv run --with pyinstaller pyinstaller
           --onefile
           --name katsustats
           --collect-all polars
