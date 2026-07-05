@@ -59,3 +59,4 @@ CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and
 ## Slash Commands (Claude Code)
 
 - `/publish` — cut a new PyPI release (bumps version, commits, creates GitHub release that triggers the publish workflow)
+- `/code-simplify` — refactor recently changed code for clarity and consistency without changing behavior
