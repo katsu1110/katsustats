@@ -53,8 +53,15 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
     widths = {}
     for col in cols:
         max_w = len(col)
-        for val in data[col]:
-            max_w = max(max_w, len(_format_cell(col, val)))
+        try:
+            max_val = df.select(
+                pl.col(col).cast(pl.String).str.len_chars().max()
+            ).item()
+            if max_val is not None:
+                max_w = max(max_w, max_val)
+        except pl.exceptions.ComputeError:
+            for val in data[col]:
+                max_w = max(max_w, len(_format_cell(col, val)))
         widths[col] = max_w + 2
 
     # Header
