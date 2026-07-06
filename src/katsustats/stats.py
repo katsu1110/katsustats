@@ -1090,9 +1090,11 @@ def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
 
 def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
-    assert sims >= 1, "sims must be >= 1"
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
     return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
 
 
@@ -1135,8 +1137,10 @@ def monte_carlo_summary(
     """
     r = _to_returns(df)
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
-    assert sims >= 1, "sims must be >= 1"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     n = len(arr)
     sim_returns = _build_sim_returns(arr, sims, seed)
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
