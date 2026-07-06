@@ -794,7 +794,7 @@ class TestPandasInputs:
         import pandas as pd
 
         df = pd.DataFrame({"returns": [0.01, -0.005, 0.008]})
-        with pytest.raises(AssertionError, match="missing columns"):
+        with pytest.raises(ValueError, match="must have a 'date' column"):
             stats.total_return(df)
 
     def test_non_tabular_pandas_object_raises_type_error(self):

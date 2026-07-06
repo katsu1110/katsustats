@@ -106,8 +106,10 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
             f"{name} must be a Polars DataFrame, pandas DataFrame, or pandas Series, "
             f"got {type(df).__name__}"
         )
-    missing = {"date", "returns"} - set(polars_df.columns)
-    assert not missing, f"{name} is missing columns: {missing}"
+    if "date" not in polars_df.columns:
+        raise ValueError(f"{name} must have a 'date' column")
+    if "returns" not in polars_df.columns:
+        raise ValueError(f"{name} must have a 'returns' column")
     if polars_df.schema["date"] != pl.Date:
         polars_df = polars_df.with_columns(pl.col("date").cast(pl.Date))
     polars_df = polars_df.select(["date", "returns"])

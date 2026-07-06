@@ -74,9 +74,12 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
         [val.rjust(widths[col]) for val in formatted_data[col]] for col in cols
     ]
 
+    import sys
+
+    stdout = sys.stdout
     for row in zip(*padded_cols):
-        print("  ".join(row))
-    print()
+        stdout.write("  ".join(row) + "\n")
+    stdout.write("\n")
 
 
 def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
