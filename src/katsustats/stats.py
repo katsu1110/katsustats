@@ -908,6 +908,17 @@ class PeriodLabel(str, enum.Enum):
     SI = "SI"
 
 
+_PERIOD_LABELS = (
+    PeriodLabel.MTD,
+    PeriodLabel.QTD,
+    PeriodLabel.YTD,
+    PeriodLabel.ONE_YEAR,
+    PeriodLabel.THREE_YEAR,
+    PeriodLabel.FIVE_YEAR,
+    PeriodLabel.SI,
+)
+
+
 def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
     import datetime as dt
@@ -990,11 +1001,11 @@ def period_performance_raw(
         row: dict[str, float] = {"strategy": float("nan")}
         if base_df is not None:
             row["benchmark"] = float("nan")
-        return {lbl.value: dict(row) for lbl in PeriodLabel}
+        return {lbl.value: dict(row) for lbl in _PERIOD_LABELS}
 
     anchor = df.get_column("date").max()
     result: dict[str, dict[str, float]] = {}
-    for lbl in PeriodLabel:
+    for lbl in _PERIOD_LABELS:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
         full_window = lbl in _TRAILING_LABELS
         entry: dict[str, float] = {
@@ -1025,7 +1036,7 @@ def period_performance(
     rows_strat: list[str] = []
     rows_bench: list[str] = []
 
-    for lbl in PeriodLabel:
+    for lbl in _PERIOD_LABELS:
         v = raw[lbl.value]
         rows_period.append(lbl.value)
         sv = v["strategy"]
