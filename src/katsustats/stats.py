@@ -8,6 +8,8 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
+import datetime as dt
+
 import numpy as np
 import polars as pl
 
@@ -898,10 +900,15 @@ def summary_metrics(
 _PERIOD_LABELS = ["MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"]
 
 
+def _subtract_years(d: dt.date, n: int) -> dt.date:
+    try:
+        return dt.date(d.year - n, d.month, d.day)
+    except ValueError:  # Feb 29 on non-leap year
+        return dt.date(d.year - n, d.month, d.day - 1)
+
+
 def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
-    import datetime as dt
-
     a: dt.date = anchor
     if label == "MTD":
         return dt.date(a.year, a.month, 1)
@@ -910,12 +917,6 @@ def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
         return dt.date(a.year, q_start_month, 1)
     if label == "YTD":
         return dt.date(a.year, 1, 1)
-
-    def _subtract_years(d: dt.date, n: int) -> dt.date:
-        try:
-            return dt.date(d.year - n, d.month, d.day)
-        except ValueError:  # Feb 29 on non-leap year
-            return dt.date(d.year - n, d.month, d.day - 1)
 
     if label == "1Y":
         return _subtract_years(a, 1)
