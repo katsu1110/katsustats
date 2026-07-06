@@ -8,6 +8,8 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
+import datetime as dt
+
 import numpy as np
 import polars as pl
 
@@ -528,10 +530,6 @@ def regime_stats(
 
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
-    assert COL_DATE in df.columns, "df must have a 'date' column"
-    assert COL_RETURNS in df.columns, "df must have a 'returns' column"
-    assert COL_DATE in base_df.columns, "base_df must have a 'date' column"
-    assert COL_RETURNS in base_df.columns, "base_df must have a 'returns' column"
 
     df = df.sort(COL_DATE)
     base_df = base_df.sort(COL_DATE)
@@ -901,10 +899,15 @@ def summary_metrics(
 _PERIOD_LABELS = ["MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"]
 
 
+def _subtract_years(d: dt.date, n: int) -> dt.date:
+    try:
+        return dt.date(d.year - n, d.month, d.day)
+    except ValueError:  # Feb 29 on non-leap year
+        return dt.date(d.year - n, d.month, d.day - 1)
+
+
 def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
-    import datetime as dt
-
     a: dt.date = anchor
     if label == "MTD":
         return dt.date(a.year, a.month, 1)
@@ -913,12 +916,6 @@ def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
         return dt.date(a.year, q_start_month, 1)
     if label == "YTD":
         return dt.date(a.year, 1, 1)
-
-    def _subtract_years(d: dt.date, n: int) -> dt.date:
-        try:
-            return dt.date(d.year - n, d.month, d.day)
-        except ValueError:  # Feb 29 on non-leap year
-            return dt.date(d.year - n, d.month, d.day - 1)
 
     if label == "1Y":
         return _subtract_years(a, 1)
@@ -1093,9 +1090,11 @@ def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
 
 def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
-    assert sims >= 1, "sims must be >= 1"
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
     return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
 
 
@@ -1138,8 +1137,10 @@ def monte_carlo_summary(
     """
     r = _to_returns(df)
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
-    assert sims >= 1, "sims must be >= 1"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     n = len(arr)
     sim_returns = _build_sim_returns(arr, sims, seed)
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import datetime as _dt
+import html as _html
 import io
 import json as _json
 import math
@@ -125,10 +126,12 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     n_rows = len(data[cols[0]])
 
     rows_html: list[str] = []
-    header_cells = "".join(f"<th>{col}</th>" for col in cols)
+    header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
     rows_html.append(f"<tr>{header_cells}</tr>")
     for i in range(n_rows):
-        cells = "".join(f"<td>{_format_cell(col, data[col][i])}</td>" for col in cols)
+        cells = "".join(
+            f"<td>{_html.escape(_format_cell(col, data[col][i]))}</td>" for col in cols
+        )
         rows_html.append(f"<tr>{cells}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'

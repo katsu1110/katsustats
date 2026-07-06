@@ -515,3 +515,17 @@ class TestMonteCarloReports:
         j1 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
         j2 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
         assert j1 == j2
+
+
+def test_df_to_html_table_escapes_xss():
+    """Test that HTML characters are escaped to prevent XSS."""
+    df = pl.DataFrame(
+        {"<script>alert('xss')</script>": ["<img src=x onerror=alert(1)>", "safe_val"]}
+    )
+    html_output = reports._df_to_html_table(df)
+
+    assert "<script>" not in html_output
+    assert "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;" in html_output
+    assert "<img src=x onerror=alert(1)>" not in html_output
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html_output
+    assert "safe_val" in html_output

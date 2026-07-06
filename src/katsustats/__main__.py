@@ -18,13 +18,17 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
         sys.exit(f"{p}: file not found.")
 
     suffix = p.suffix.lower()
-    if suffix == ".parquet":
-        df = pl.read_parquet(p)
-    elif suffix == ".csv":
-        df = pl.read_csv(p, try_parse_dates=True)
-    else:
+    if suffix not in (".csv", ".parquet"):
         label = f"'{suffix}'" if suffix else "no extension"
         sys.exit(f"{p}: {label} is not supported. Use .csv or .parquet.")
+
+    try:
+        if suffix == ".parquet":
+            df = pl.read_parquet(p)
+        elif suffix == ".csv":
+            df = pl.read_csv(p, try_parse_dates=True)
+    except Exception as e:
+        sys.exit(f"{p}: Failed to parse file. Error: {e}")
 
     missing = [c for c in [date_col, returns_col] if c not in df.columns]
     if missing:
