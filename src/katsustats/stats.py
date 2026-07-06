@@ -527,10 +527,6 @@ def regime_stats(
 
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
-    assert "date" in df.columns, "df must have a 'date' column"
-    assert "returns" in df.columns, "df must have a 'returns' column"
-    assert "date" in base_df.columns, "base_df must have a 'date' column"
-    assert "returns" in base_df.columns, "base_df must have a 'returns' column"
 
     df = df.sort("date")
     base_df = base_df.sort("date")
