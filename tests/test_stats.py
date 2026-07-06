@@ -1262,7 +1262,7 @@ class TestMonteCarloPaths:
         assert result.columns == ["step", "sim_0"]
 
     def test_sims_must_be_positive(self, sample_df):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             stats.monte_carlo_paths(sample_df, sims=0)
 
 
