@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import datetime as _dt
+import html as _html
 import io
 import json as _json
 import math
@@ -20,6 +21,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from . import plots, stats
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, ensure_polars
 
 _COMPARISON_KEYS = {
@@ -47,28 +49,35 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
         print(f"  {title}")
         print(f"{'=' * 60}")
 
-    # Get column widths
     cols = df.columns
+    if not cols:
+        print()
+        return
+
     data = df.to_dict(as_series=False)
+
+    formatted_data = {}
     widths = {}
     for col in cols:
-        max_w = len(col)
-        for val in data[col]:
-            max_w = max(max_w, len(_format_cell(col, val)))
-        widths[col] = max_w + 2
+        formatted_col = [_format_cell(col, val) for val in data[col]]
+        formatted_data[col] = formatted_col
+        max_len = max((len(val) for val in formatted_col), default=0)
+        widths[col] = max(len(col), max_len) + 2
 
-    # Header
     header = "  ".join(str(col).rjust(widths[col]) for col in cols)
     print(header)
     print("  ".join("-" * widths[col] for col in cols))
 
-    # Rows
-    n_rows = len(data[cols[0]])
-    for i in range(n_rows):
-        row = "  ".join(
-            _format_cell(col, data[col][i]).rjust(widths[col]) for col in cols
-        )
-        print(row)
+    if len(data[cols[0]]) == 0:
+        print()
+        return
+
+    padded_cols = [
+        [val.rjust(widths[col]) for val in formatted_data[col]] for col in cols
+    ]
+
+    for row in zip(*padded_cols):
+        print("  ".join(row))
     print()
 
 
@@ -124,10 +133,12 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     n_rows = len(data[cols[0]])
 
     rows_html: list[str] = []
-    header_cells = "".join(f"<th>{col}</th>" for col in cols)
+    header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
     rows_html.append(f"<tr>{header_cells}</tr>")
     for i in range(n_rows):
-        cells = "".join(f"<td>{_format_cell(col, data[col][i])}</td>" for col in cols)
+        cells = "".join(
+            f"<td>{_html.escape(_format_cell(col, data[col][i]))}</td>" for col in cols
+        )
         rows_html.append(f"<tr>{cells}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
@@ -138,22 +149,24 @@ def _validate_and_sort(
     benchmark: DataFrameLike | None,
 ) -> tuple[pl.DataFrame, pl.DataFrame | None]:
     """Normalise, validate, and sort inputs; return (returns, benchmark) as Polars frames."""
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    returns = ensure_polars(returns, name=COL_RETURNS)
+    assert COL_DATE in returns.columns, "returns must have a 'date' column"
+    assert COL_RETURNS in returns.columns, "returns must have a 'returns' column"
     if benchmark is not None:
         benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
+        assert COL_DATE in benchmark.columns, "benchmark must have a 'date' column"
+        assert COL_RETURNS in benchmark.columns, (
+            "benchmark must have a 'returns' column"
+        )
+    returns = returns.sort(COL_DATE)
+    assert returns[COL_DATE].n_unique() == returns.height, (
         "Expected `returns` to have unique dates after `ensure_polars()` "
         "normalization/compounding. If this fails, check the input for "
         "duplicate same-date rows or investigate whether normalization "
         "did not run as expected."
     )
     if benchmark is not None:
-        benchmark = benchmark.sort("date")
+        benchmark = benchmark.sort(COL_DATE)
     return returns, benchmark
 
 
@@ -406,7 +419,7 @@ def _metadata_payload(
     periods: int,
 ) -> dict[str, object]:
     """Build shared metadata for structured report outputs."""
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     return {
         "title": title,
         "start_date": _json_safe_value(dates.min()),
@@ -1098,7 +1111,7 @@ def _build_html(
     returns, benchmark = _validate_and_sort(returns, benchmark)
 
     # ── Metadata ────────────────────────────────────────────────────
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     date_start = str(dates.min())
     date_end = str(dates.max())
     n_days = len(dates)

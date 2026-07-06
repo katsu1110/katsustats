@@ -8,11 +8,13 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
+import datetime as dt
 import enum
 
 import numpy as np
 import polars as pl
 
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 
 # ---------------------------------------------------------------------------
@@ -23,7 +25,7 @@ from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 def _to_returns(df: DataFrameLike, name: str = "df") -> pl.Series:
     """Extract the returns column as a Polars Series."""
     df = ensure_polars(df, name=name)
-    return df.get_column("returns")
+    return df.get_column(COL_RETURNS)
 
 
 def _cumulative(returns: pl.Series) -> pl.Series:
@@ -273,17 +275,17 @@ def _longest_streak(r: pl.Series, positive: bool) -> int:
 def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
     """Compounded returns aggregated by calendar period ('1mo' or '1y')."""
     return (
-        df.with_columns(pl.col("date").cast(pl.Date))
-        .sort("date")
-        .group_by_dynamic("date", every=every)
-        .agg((pl.col("returns") + 1).product() - 1)
-        .get_column("returns")
+        df.with_columns(pl.col(COL_DATE).cast(pl.Date))
+        .sort(COL_DATE)
+        .group_by_dynamic(COL_DATE, every=every)
+        .agg((pl.col(COL_RETURNS) + 1).product() - 1)
+        .get_column(COL_RETURNS)
     )
 
 
 def _daily_returns(df: pl.DataFrame) -> pl.DataFrame:
     """Compound returns to one row per calendar date."""
-    normalised = df.with_columns(pl.col("date").cast(pl.Date)).sort("date")
+    normalised = df.with_columns(pl.col(COL_DATE).cast(pl.Date)).sort(COL_DATE)
     return _compound_by_date(normalised)
 
 
@@ -373,7 +375,7 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     """
     df = ensure_polars(df)
     r = _to_returns(df)
-    dates = df.get_column("date").to_list()
+    dates = df.get_column(COL_DATE).to_list()
     cumval = _cumulative_value(r)
     running_max = cumval.cum_max()
     dd = (cumval - running_max) / running_max
@@ -450,9 +452,9 @@ def alpha_beta(
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    r = joined.get_column("returns").to_numpy()
+    r = joined.get_column(COL_RETURNS).to_numpy()
     b = joined.get_column("_base_returns").to_numpy()
 
     cov = np.cov(r, b)
@@ -470,9 +472,9 @@ def correlation(df: DataFrameLike, base_df: DataFrameLike) -> float:
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    r = joined.get_column("returns").to_numpy()
+    r = joined.get_column(COL_RETURNS).to_numpy()
     b = joined.get_column("_base_returns").to_numpy()
     return float(np.corrcoef(r, b)[0, 1])
 
@@ -484,9 +486,9 @@ def information_ratio(
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    excess = joined.get_column("returns") - joined.get_column("_base_returns")
+    excess = joined.get_column(COL_RETURNS) - joined.get_column("_base_returns")
     te = float(excess.std())
     if te == 0:
         return 0.0
@@ -498,9 +500,9 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    strat_ret = float((joined.get_column("returns") + 1).product() - 1)
+    strat_ret = float((joined.get_column(COL_RETURNS) + 1).product() - 1)
     bench_ret = float((joined.get_column("_base_returns") + 1).product() - 1)
     return strat_ret - bench_ret
 
@@ -529,21 +531,17 @@ def regime_stats(
 
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
-    assert "date" in df.columns, "df must have a 'date' column"
-    assert "returns" in df.columns, "df must have a 'returns' column"
-    assert "date" in base_df.columns, "base_df must have a 'date' column"
-    assert "returns" in base_df.columns, "base_df must have a 'returns' column"
 
-    df = df.sort("date")
-    base_df = base_df.sort("date")
-    assert df["date"].n_unique() == df.height, "df must have one row per date"
-    assert base_df["date"].n_unique() == base_df.height, (
+    df = df.sort(COL_DATE)
+    base_df = base_df.sort(COL_DATE)
+    assert df[COL_DATE].n_unique() == df.height, "df must have one row per date"
+    assert base_df[COL_DATE].n_unique() == base_df.height, (
         "base_df must have one row per date"
     )
 
     base_features = base_df.with_columns(
-        ((pl.col("returns") + 1).cum_prod() - 1).alias("_cumret"),
-        pl.col("returns")
+        ((pl.col(COL_RETURNS) + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col(COL_RETURNS)
         .rolling_std(window_size=vol_window, ddof=1)
         .alias("_rolling_vol"),
     ).with_columns(
@@ -569,9 +567,9 @@ def regime_stats(
             .with_columns(
                 pl.concat_str(["_trend", "_vol_regime"], separator="_").alias("regime")
             )
-            .select(["date", "regime"])
+            .select([COL_DATE, "regime"])
         )
-        aligned = df.join(base_regimes, on="date", how="inner")
+        aligned = df.join(base_regimes, on=COL_DATE, how="inner")
 
     regimes = [
         "bull_low_vol",
@@ -633,13 +631,13 @@ def day_of_week_stats(df: DataFrameLike) -> pl.DataFrame:
     """
     df = ensure_polars(df)
     result = (
-        df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
+        df.with_columns(pl.col(COL_DATE).cast(pl.Date).dt.weekday().alias("dow"))
         .group_by("dow")
         .agg(
-            pl.col("returns").mean().alias("mean_return"),
-            (pl.col("returns") > 0).mean().alias("win_rate"),
-            ((pl.col("returns") + 1).product() - 1).alias("total_return"),
-            pl.col("returns").count().alias("count"),
+            pl.col(COL_RETURNS).mean().alias("mean_return"),
+            (pl.col(COL_RETURNS) > 0).mean().alias("win_rate"),
+            ((pl.col(COL_RETURNS) + 1).product() - 1).alias("total_return"),
+            pl.col(COL_RETURNS).count().alias("count"),
         )
         .sort("dow")
         .with_columns(
@@ -665,11 +663,13 @@ def rolling_sharpe(
     """Rolling Sharpe ratio over a given window."""
     df = ensure_polars(df)
     return (
-        df.sort("date")
+        df.sort(COL_DATE)
         .with_columns(
             [
-                pl.col("returns").rolling_mean(window_size=window).alias("_rm"),
-                pl.col("returns").rolling_std(window_size=window, ddof=1).alias("_rs"),
+                pl.col(COL_RETURNS).rolling_mean(window_size=window).alias("_rm"),
+                pl.col(COL_RETURNS)
+                .rolling_std(window_size=window, ddof=1)
+                .alias("_rs"),
             ]
         )
         .with_columns(
@@ -677,7 +677,7 @@ def rolling_sharpe(
             .then(pl.col("_rm") / pl.col("_rs") * float(periods**0.5))
             .alias("rolling_sharpe")
         )
-        .select(["date", "rolling_sharpe"])
+        .select([COL_DATE, "rolling_sharpe"])
     )
 
 
@@ -687,14 +687,14 @@ def rolling_volatility(
     """Rolling annualized volatility over a given window."""
     df = ensure_polars(df)
     return (
-        df.sort("date")
+        df.sort(COL_DATE)
         .with_columns(
             (
-                pl.col("returns").rolling_std(window_size=window, ddof=1)
+                pl.col(COL_RETURNS).rolling_std(window_size=window, ddof=1)
                 * float(periods**0.5)
             ).alias("rolling_vol")
         )
-        .select(["date", "rolling_vol"])
+        .select([COL_DATE, "rolling_vol"])
     )
 
 
@@ -919,10 +919,15 @@ _PERIOD_LABELS = [
 ]
 
 
+def _subtract_years(d: dt.date, n: int) -> dt.date:
+    try:
+        return dt.date(d.year - n, d.month, d.day)
+    except ValueError:  # Feb 29 on non-leap year
+        return dt.date(d.year - n, d.month, d.day - 1)
+
+
 def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
-    import datetime as dt
-
     a: dt.date = anchor
     if label == PeriodLabel.MTD:
         return dt.date(a.year, a.month, 1)
@@ -931,12 +936,6 @@ def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
         return dt.date(a.year, q_start_month, 1)
     if label == PeriodLabel.YTD:
         return dt.date(a.year, 1, 1)
-
-    def _subtract_years(d: dt.date, n: int) -> dt.date:
-        try:
-            return dt.date(d.year - n, d.month, d.day)
-        except ValueError:  # Feb 29 on non-leap year
-            return dt.date(d.year - n, d.month, d.day - 1)
 
     if label == PeriodLabel.ONE_YEAR:
         return _subtract_years(a, 1)
@@ -965,10 +964,10 @@ def _trailing_return(
         return float("nan")
     if cutoff is None:
         return float(total_return(df))
-    first = df.get_column("date").min()
+    first = df.get_column(COL_DATE).min()
     if require_full_window and cutoff <= first:
         return float("nan")
-    subset = df.filter(pl.col("date") >= cutoff)
+    subset = df.filter(pl.col(COL_DATE) >= cutoff)
     return float(total_return(subset)) if subset.height > 0 else float("nan")
 
 
@@ -990,11 +989,11 @@ def period_performance_raw(
         base_df = _daily_returns(ensure_polars(base_df, name="base_df"))
         # Align to common dates so strategy and benchmark use the same anchor.
         joined = df.join(
-            base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
-        ).sort("date")
+            base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+        ).sort(COL_DATE)
         df = joined.select(["date", "returns"])
         base_df = joined.select(
-            [pl.col("date"), pl.col("_base_returns").alias("returns")]
+            [pl.col(COL_DATE), pl.col("_base_returns").alias(COL_RETURNS)]
         )
 
     if df.height == 0:
@@ -1003,7 +1002,7 @@ def period_performance_raw(
             row["benchmark"] = float("nan")
         return {lbl.value: dict(row) for lbl in _PERIOD_LABELS}
 
-    anchor = df.get_column("date").max()
+    anchor = df.get_column(COL_DATE).max()
     result: dict[str, dict[str, float]] = {}
     for lbl in _PERIOD_LABELS:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
@@ -1111,9 +1110,11 @@ def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
 
 def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
-    assert sims >= 1, "sims must be >= 1"
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
     return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
 
 
@@ -1156,8 +1157,10 @@ def monte_carlo_summary(
     """
     r = _to_returns(df)
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
-    assert sims >= 1, "sims must be >= 1"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     n = len(arr)
     sim_returns = _build_sim_returns(arr, sims, seed)
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
