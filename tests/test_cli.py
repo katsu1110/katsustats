@@ -306,6 +306,21 @@ class TestReportCommand:
             main()
         assert "file not found" in str(exc_info.value)
 
+    def test_invalid_csv_parsing_failure(self, tmp_path: Path, monkeypatch):
+        bad = tmp_path / "malformed.csv"
+        # Create a CSV with ragged lines that polars read_csv will reject
+        bad.write_text(
+            "date,returns\n2020-01-01\n2020-01-02,0.01,0.02\n", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "report", str(bad), "-o", str(tmp_path / "out.html")],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert "Failed to parse file" in str(exc_info.value)
+
     def test_missing_column_exits_with_clear_message(
         self, csv_file: Path, tmp_path: Path, monkeypatch
     ):

@@ -15,6 +15,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 
 from . import stats
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, ensure_polars
 
 # ---------------------------------------------------------------------------
@@ -88,18 +89,18 @@ def _align_to_common_dates(
     The sort ensures chronological order since joins do not preserve row order.
     """
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
-    ).sort("date")
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    ).sort(COL_DATE)
     return joined.select(["date", "returns"]), joined.select(
-        [pl.col("date"), pl.col("_base_returns").alias("returns")]
+        [pl.col(COL_DATE), pl.col("_base_returns").alias(COL_RETURNS)]
     )
 
 
 def _returns_by_day_of_week(df: pl.DataFrame, dow_order: list[int]) -> list[np.ndarray]:
     """Return daily return arrays ordered by ISO weekday number."""
-    dow_df = df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
+    dow_df = df.with_columns(pl.col(COL_DATE).cast(pl.Date).dt.weekday().alias("dow"))
     return [
-        dow_df.filter(pl.col("dow") == dow).get_column("returns").to_numpy()
+        dow_df.filter(pl.col("dow") == dow).get_column(COL_RETURNS).to_numpy()
         for dow in dow_order
     ]
 
@@ -129,7 +130,7 @@ def plot_cumulative_returns(
         df, base_df = _align_to_common_dates(df, base_df)
     r = stats._to_returns(df)
     cumval = stats._cumulative(r)
-    dates = df.get_column("date").to_numpy()
+    dates = df.get_column(COL_DATE).to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
@@ -142,7 +143,7 @@ def plot_cumulative_returns(
         br = stats._to_returns(base_df)
         bcum = stats._cumulative(br)
         ax.plot(
-            base_df.get_column("date").to_numpy(),
+            base_df.get_column(COL_DATE).to_numpy(),
             bcum.to_numpy(),
             lw=1.4,
             color=_COLORS["benchmark"],
@@ -171,7 +172,7 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
     cumval = stats._cumulative_value(r)
     running_max = cumval.cum_max()
     dd = ((cumval - running_max) / running_max).to_numpy()
-    dates = df.get_column("date").to_numpy()
+    dates = df.get_column(COL_DATE).to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
     _apply_style(ax, fig)
@@ -206,7 +207,7 @@ def plot_drawdown_periods(
     df = ensure_polars(df)
     r = stats._to_returns(df)
     cumval = stats._cumulative_value(r).to_numpy()
-    dates = df.get_column("date").to_numpy()
+    dates = df.get_column(COL_DATE).to_numpy()
     dd_details = stats.drawdown_details(df, top_n=top_n)
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -237,11 +238,11 @@ def plot_monthly_heatmap(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
     df = ensure_polars(df)
     monthly = (
         df.with_columns(
-            pl.col("date").cast(pl.Date).dt.year().alias("year"),
-            pl.col("date").cast(pl.Date).dt.month().alias("month"),
+            pl.col(COL_DATE).cast(pl.Date).dt.year().alias("year"),
+            pl.col(COL_DATE).cast(pl.Date).dt.month().alias("month"),
         )
         .group_by(["year", "month"])
-        .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
+        .agg(((pl.col(COL_RETURNS) + 1).product() - 1).alias("ret"))
         .sort(["year", "month"])
     )
 
@@ -341,9 +342,9 @@ def plot_yearly_returns(
 
     def _yearly(d: pl.DataFrame) -> pl.DataFrame:
         return (
-            d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
+            d.with_columns(pl.col(COL_DATE).cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col(COL_RETURNS) + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
@@ -407,9 +408,9 @@ def plot_eoy_returns(
 
     def _eoy(d: pl.DataFrame) -> pl.DataFrame:
         return (
-            d.with_columns(pl.col("date").cast(pl.Date).dt.year().alias("year"))
+            d.with_columns(pl.col(COL_DATE).cast(pl.Date).dt.year().alias("year"))
             .group_by("year")
-            .agg(((pl.col("returns") + 1).product() - 1).alias("ret"))
+            .agg(((pl.col(COL_RETURNS) + 1).product() - 1).alias("ret"))
             .sort("year")
         )
 
@@ -538,7 +539,7 @@ def plot_rolling_sharpe(
         base_df = ensure_polars(base_df, name="base_df")
         df, base_df = _align_to_common_dates(df, base_df)
     roll = stats.rolling_sharpe(df, window)
-    dates = roll.get_column("date").to_numpy()
+    dates = roll.get_column(COL_DATE).to_numpy()
     vals = roll.get_column("rolling_sharpe").to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -549,7 +550,7 @@ def plot_rolling_sharpe(
     if base_df is not None:
         broll = stats.rolling_sharpe(base_df, window)
         ax.plot(
-            broll.get_column("date").to_numpy(),
+            broll.get_column(COL_DATE).to_numpy(),
             broll.get_column("rolling_sharpe").to_numpy(),
             lw=1.2,
             color=_COLORS["benchmark"],
@@ -582,7 +583,7 @@ def plot_rolling_volatility(
         base_df = ensure_polars(base_df, name="base_df")
         df, base_df = _align_to_common_dates(df, base_df)
     roll = stats.rolling_volatility(df, window)
-    dates = roll.get_column("date").to_numpy()
+    dates = roll.get_column(COL_DATE).to_numpy()
     vals = roll.get_column("rolling_vol").to_numpy()
 
     fig, ax = plt.subplots(figsize=figsize)
@@ -593,7 +594,7 @@ def plot_rolling_volatility(
     if base_df is not None:
         broll = stats.rolling_volatility(base_df, window)
         ax.plot(
-            broll.get_column("date").to_numpy(),
+            broll.get_column(COL_DATE).to_numpy(),
             broll.get_column("rolling_vol").to_numpy(),
             lw=1.2,
             color=_COLORS["benchmark"],
