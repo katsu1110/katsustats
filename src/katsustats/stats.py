@@ -908,7 +908,7 @@ class PeriodLabel(str, enum.Enum):
     SI = "SI"
 
 
-_PERIOD_LABELS = (
+_PERIOD_LABELS = [
     PeriodLabel.MTD,
     PeriodLabel.QTD,
     PeriodLabel.YTD,
@@ -916,7 +916,7 @@ _PERIOD_LABELS = (
     PeriodLabel.THREE_YEAR,
     PeriodLabel.FIVE_YEAR,
     PeriodLabel.SI,
-)
+]
 
 
 def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
