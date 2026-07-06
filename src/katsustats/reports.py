@@ -47,29 +47,39 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
         print(f"  {title}")
         print(f"{'=' * 60}")
 
-    # Get column widths
     cols = df.columns
+    if not cols:
+        print()
+        return
+
     data = df.to_dict(as_series=False)
+
+    formatted_data = {}
     widths = {}
     for col in cols:
-        max_w = len(col)
-        for val in data[col]:
-            max_w = max(max_w, len(_format_cell(col, val)))
-        widths[col] = max_w + 2
+        formatted_col = [_format_cell(col, val) for val in data[col]]
+        formatted_data[col] = formatted_col
+        max_len = max((len(val) for val in formatted_col), default=0)
+        widths[col] = max(len(col), max_len) + 2
 
-    # Header
     header = "  ".join(str(col).rjust(widths[col]) for col in cols)
     print(header)
     print("  ".join("-" * widths[col] for col in cols))
 
-    # Rows
-    n_rows = len(data[cols[0]])
-    for i in range(n_rows):
-        row = "  ".join(
-            _format_cell(col, data[col][i]).rjust(widths[col]) for col in cols
-        )
-        print(row)
-    print()
+    if len(data[cols[0]]) == 0:
+        print()
+        return
+
+    padded_cols = [
+        [val.rjust(widths[col]) for val in formatted_data[col]] for col in cols
+    ]
+
+    import sys
+
+    stdout = sys.stdout
+    for row in zip(*padded_cols):
+        stdout.write("  ".join(row) + "\n")
+    stdout.write("\n")
 
 
 def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
