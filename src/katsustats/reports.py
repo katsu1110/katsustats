@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from . import plots, stats
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, ensure_polars
 
 _COMPARISON_KEYS = {
@@ -138,22 +139,24 @@ def _validate_and_sort(
     benchmark: DataFrameLike | None,
 ) -> tuple[pl.DataFrame, pl.DataFrame | None]:
     """Normalise, validate, and sort inputs; return (returns, benchmark) as Polars frames."""
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    returns = ensure_polars(returns, name=COL_RETURNS)
+    assert COL_DATE in returns.columns, "returns must have a 'date' column"
+    assert COL_RETURNS in returns.columns, "returns must have a 'returns' column"
     if benchmark is not None:
         benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
+        assert COL_DATE in benchmark.columns, "benchmark must have a 'date' column"
+        assert COL_RETURNS in benchmark.columns, (
+            "benchmark must have a 'returns' column"
+        )
+    returns = returns.sort(COL_DATE)
+    assert returns[COL_DATE].n_unique() == returns.height, (
         "Expected `returns` to have unique dates after `ensure_polars()` "
         "normalization/compounding. If this fails, check the input for "
         "duplicate same-date rows or investigate whether normalization "
         "did not run as expected."
     )
     if benchmark is not None:
-        benchmark = benchmark.sort("date")
+        benchmark = benchmark.sort(COL_DATE)
     return returns, benchmark
 
 
@@ -404,7 +407,7 @@ def _metadata_payload(
     periods: int,
 ) -> dict[str, object]:
     """Build shared metadata for structured report outputs."""
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     return {
         "title": title,
         "start_date": _json_safe_value(dates.min()),
@@ -1096,7 +1099,7 @@ def _build_html(
     returns, benchmark = _validate_and_sort(returns, benchmark)
 
     # ── Metadata ────────────────────────────────────────────────────
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     date_start = str(dates.min())
     date_end = str(dates.max())
     n_days = len(dates)

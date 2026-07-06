@@ -9,6 +9,7 @@ from pathlib import Path
 import polars as pl
 
 from katsustats import reports
+from katsustats._constants import COL_DATE, COL_RETURNS
 
 
 def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
@@ -34,10 +35,10 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
         )
 
     rename: dict[str, str] = {}
-    if date_col != "date":
-        rename[date_col] = "date"
-    if returns_col != "returns":
-        rename[returns_col] = "returns"
+    if date_col != COL_DATE:
+        rename[date_col] = COL_DATE
+    if returns_col != COL_RETURNS:
+        rename[returns_col] = COL_RETURNS
     if rename:
         df = df.rename(rename)
 
@@ -109,13 +110,13 @@ def main() -> None:
     )
     p_report.add_argument(
         "--date-col",
-        default="date",
+        default=COL_DATE,
         dest="date_col",
         help="Name of the date column (default: date).",
     )
     p_report.add_argument(
         "--returns-col",
-        default="returns",
+        default=COL_RETURNS,
         dest="returns_col",
         help="Name of the returns column (default: returns).",
     )
@@ -132,13 +133,13 @@ def main() -> None:
     )
     p_report.add_argument(
         "--benchmark-date-col",
-        default="date",
+        default=COL_DATE,
         dest="benchmark_date_col",
         help="Benchmark date column name (default: date).",
     )
     p_report.add_argument(
         "--benchmark-returns-col",
-        default="returns",
+        default=COL_RETURNS,
         dest="benchmark_returns_col",
         help="Benchmark returns column name (default: returns).",
     )
