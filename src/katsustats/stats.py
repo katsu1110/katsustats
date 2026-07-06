@@ -998,7 +998,7 @@ def period_performance_raw(
             out_key = f"{prefix}_{lbl}"
             if cutoff is None:
                 expr = (pl.col(col_name) + 1).product() - 1
-            elif full_window and cutoff < first:
+            elif full_window and cutoff <= first:
                 expr = pl.lit(float("nan"))
             else:
                 filtered = pl.col(col_name).filter(mask)
