@@ -272,16 +272,18 @@ def _markdown_report(payload: dict[str, object]) -> str:
         period_headers.append("Benchmark")
     period_rows: list[list[str]] = []
     benchmark_periods = None if benchmark is None else benchmark["period_performance"]
-    for label in stats._PERIOD_LABELS:
+    for label in stats.PeriodLabel:
         row = [
-            label,
+            label.value,
             _format_markdown_value(
-                strategy["period_performance"][label].get("strategy"), "pct"
+                strategy["period_performance"][label.value].get("strategy"), "pct"
             ),
         ]
         if benchmark_periods is not None:
             row.append(
-                _format_markdown_value(benchmark_periods[label].get("benchmark"), "pct")
+                _format_markdown_value(
+                    benchmark_periods[label.value].get("benchmark"), "pct"
+                )
             )
         period_rows.append(row)
     lines.extend([_markdown_table(period_headers, period_rows), ""])

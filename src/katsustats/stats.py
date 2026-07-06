@@ -8,6 +8,8 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
+import enum
+
 import numpy as np
 import polars as pl
 
@@ -895,20 +897,28 @@ def summary_metrics(
 # Period Performance
 # ---------------------------------------------------------------------------
 
-_PERIOD_LABELS = ["MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"]
+
+class PeriodLabel(str, enum.Enum):
+    MTD = "MTD"
+    QTD = "QTD"
+    YTD = "YTD"
+    ONE_YEAR = "1Y"
+    THREE_YEAR = "3Y"
+    FIVE_YEAR = "5Y"
+    SI = "SI"
 
 
-def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
+def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
     import datetime as dt
 
     a: dt.date = anchor
-    if label == "MTD":
+    if label == PeriodLabel.MTD:
         return dt.date(a.year, a.month, 1)
-    if label == "QTD":
+    if label == PeriodLabel.QTD:
         q_start_month = ((a.month - 1) // 3) * 3 + 1
         return dt.date(a.year, q_start_month, 1)
-    if label == "YTD":
+    if label == PeriodLabel.YTD:
         return dt.date(a.year, 1, 1)
 
     def _subtract_years(d: dt.date, n: int) -> dt.date:
@@ -917,16 +927,16 @@ def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
         except ValueError:  # Feb 29 on non-leap year
             return dt.date(d.year - n, d.month, d.day - 1)
 
-    if label == "1Y":
+    if label == PeriodLabel.ONE_YEAR:
         return _subtract_years(a, 1)
-    if label == "3Y":
+    if label == PeriodLabel.THREE_YEAR:
         return _subtract_years(a, 3)
-    if label == "5Y":
+    if label == PeriodLabel.FIVE_YEAR:
         return _subtract_years(a, 5)
     return None  # SI — caller uses full series
 
 
-_TRAILING_LABELS = {"1Y", "3Y", "5Y"}
+_TRAILING_LABELS = {PeriodLabel.ONE_YEAR, PeriodLabel.THREE_YEAR, PeriodLabel.FIVE_YEAR}
 
 
 def _trailing_return(
@@ -980,11 +990,11 @@ def period_performance_raw(
         row: dict[str, float] = {"strategy": float("nan")}
         if base_df is not None:
             row["benchmark"] = float("nan")
-        return {lbl: dict(row) for lbl in _PERIOD_LABELS}
+        return {lbl.value: dict(row) for lbl in PeriodLabel}
 
     anchor = df.get_column("date").max()
     result: dict[str, dict[str, float]] = {}
-    for lbl in _PERIOD_LABELS:
+    for lbl in PeriodLabel:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
         full_window = lbl in _TRAILING_LABELS
         entry: dict[str, float] = {
@@ -994,7 +1004,7 @@ def period_performance_raw(
             entry["benchmark"] = _trailing_return(
                 base_df, cutoff, require_full_window=full_window
             )
-        result[lbl] = entry
+        result[lbl.value] = entry
 
     return result
 
@@ -1015,9 +1025,9 @@ def period_performance(
     rows_strat: list[str] = []
     rows_bench: list[str] = []
 
-    for lbl in _PERIOD_LABELS:
-        v = raw[lbl]
-        rows_period.append(lbl)
+    for lbl in PeriodLabel:
+        v = raw[lbl.value]
+        rows_period.append(lbl.value)
         sv = v["strategy"]
         rows_strat.append("—" if (sv != sv) else f"{sv:.2%}")
         if base_df is not None:
