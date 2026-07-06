@@ -306,12 +306,9 @@ class TestReportCommand:
             main()
         assert "file not found" in str(exc_info.value)
 
-    def test_invalid_csv_parsing_failure(self, tmp_path: Path, monkeypatch):
-        bad = tmp_path / "malformed.csv"
-        # Create a CSV with ragged lines that polars read_csv will reject
-        bad.write_text(
-            "date,returns\n2020-01-01\n2020-01-02,0.01,0.02\n", encoding="utf-8"
-        )
+    def test_invalid_file_parse_error(self, tmp_path: Path, monkeypatch):
+        bad = tmp_path / "malformed.parquet"
+        bad.write_bytes(b"not a valid parquet file")
 
         monkeypatch.setattr(
             "sys.argv",
