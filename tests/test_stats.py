@@ -1023,6 +1023,17 @@ class TestPositiveYearsPct:
 # ---------------------------------------------------------------------------
 
 
+class TestPeriodCutoff:
+    def test_leap_year(self):
+        from datetime import date
+
+        # 2024 is a leap year. Subtracting 1, 3, or 5 years should yield Feb 28 of non-leap years.
+        d = date(2024, 2, 29)
+        assert stats._period_cutoff(d, "1Y") == date(2023, 2, 28)
+        assert stats._period_cutoff(d, "3Y") == date(2021, 2, 28)
+        assert stats._period_cutoff(d, "5Y") == date(2019, 2, 28)
+
+
 class TestPeriodPerformanceRaw:
     def test_returns_dict_with_all_labels(self, sample_df):
         result = stats.period_performance_raw(sample_df)
