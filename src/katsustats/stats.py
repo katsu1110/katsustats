@@ -965,35 +965,59 @@ def period_performance_raw(
     both columns in the table always reflect the same date range.
     """
     df = _daily_returns(ensure_polars(df))
-    if base_df is not None:
+    has_benchmark = base_df is not None
+    if has_benchmark:
         base_df = _daily_returns(ensure_polars(base_df, name="base_df"))
         # Align to common dates so strategy and benchmark use the same anchor.
-        joined = df.join(
+        df = df.join(
             base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
         ).sort("date")
-        df = joined.select(["date", "returns"])
-        base_df = joined.select(
-            [pl.col("date"), pl.col("_base_returns").alias("returns")]
-        )
 
     if df.height == 0:
         row: dict[str, float] = {"strategy": float("nan")}
-        if base_df is not None:
+        if has_benchmark:
             row["benchmark"] = float("nan")
         return {lbl: dict(row) for lbl in _PERIOD_LABELS}
 
     anchor = df.get_column("date").max()
-    result: dict[str, dict[str, float]] = {}
+    first = df.get_column("date").min()
+
+    exprs = []
+    cols = [("returns", "strategy")]
+    if has_benchmark:
+        cols.append(("_base_returns", "benchmark"))
+
     for lbl in _PERIOD_LABELS:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
         full_window = lbl in _TRAILING_LABELS
-        entry: dict[str, float] = {
-            "strategy": _trailing_return(df, cutoff, require_full_window=full_window)
-        }
-        if base_df is not None:
-            entry["benchmark"] = _trailing_return(
-                base_df, cutoff, require_full_window=full_window
-            )
+
+        if cutoff is not None:
+            mask = pl.col("date") >= cutoff
+
+        for col_name, prefix in cols:
+            out_key = f"{prefix}_{lbl}"
+            if cutoff is None:
+                expr = (pl.col(col_name) + 1).product() - 1
+            elif full_window and cutoff < first:
+                expr = pl.lit(float("nan"))
+            else:
+                filtered = pl.col(col_name).filter(mask)
+                expr = (
+                    pl.when(filtered.count() > 0)
+                    .then((filtered + 1).product() - 1)
+                    .otherwise(pl.lit(float("nan")))
+                )
+
+            exprs.append(expr.alias(out_key))
+
+    res_df = df.select(exprs)
+    res_dict = res_df.to_dicts()[0]
+
+    result: dict[str, dict[str, float]] = {}
+    for lbl in _PERIOD_LABELS:
+        entry: dict[str, float] = {"strategy": float(res_dict[f"strategy_{lbl}"])}
+        if has_benchmark:
+            entry["benchmark"] = float(res_dict[f"benchmark_{lbl}"])
         result[lbl] = entry
 
     return result
