@@ -501,3 +501,65 @@ class TestPlotMonteCarloDistribution:
             sample_df, sims=20, seed=0, figsize=(8, 3)
         )
         assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
+# Bug 1: plot_drawdown anchored at initial capital
+# ---------------------------------------------------------------------------
+
+
+class TestPlotDrawdownInitialCapital:
+    def test_large_initial_loss_shows_drawdown(self):
+        import datetime
+
+        dates = [
+            datetime.date(2023, 1, 2),
+            datetime.date(2023, 1, 3),
+            datetime.date(2023, 1, 4),
+            datetime.date(2023, 1, 5),
+        ]
+        df = pl.DataFrame(
+            {"date": dates, "returns": [-0.5, 0.05, 0.10, 0.20]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        fig = plots.plot_drawdown(df)
+        collections = _drawdown_fill_collections(fig)
+        assert len(collections) == 1
+        assert bool(collections[0].get_paths())
+
+
+# ---------------------------------------------------------------------------
+# Bug 5: plot_yearly_returns NaN for missing benchmark years
+# ---------------------------------------------------------------------------
+
+
+class TestPlotYearlyReturnsBenchmarkNaN:
+    def test_missing_benchmark_year_not_zero(self):
+        import datetime
+
+        df = pl.DataFrame(
+            {
+                "date": [
+                    datetime.date(2020, 6, 1),
+                    datetime.date(2021, 6, 1),
+                    datetime.date(2022, 6, 1),
+                    datetime.date(2023, 6, 1),
+                ],
+                "returns": [0.05, 0.02, 0.03, 0.08],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        base_df = pl.DataFrame(
+            {
+                "date": [
+                    datetime.date(2021, 6, 1),
+                    datetime.date(2023, 6, 1),
+                ],
+                "returns": [0.01, 0.03],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        fig = plots.plot_yearly_returns(df, base_df=base_df)
+        ax = fig.axes[0]
+        bar_heights = [p.get_height() for p in ax.patches]
+        import math
+
+        nan_count = sum(1 for h in bar_heights if math.isnan(h))
+        assert nan_count >= 1

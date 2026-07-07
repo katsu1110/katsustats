@@ -170,7 +170,7 @@ def plot_drawdown(df: DataFrameLike, figsize: tuple = (12, 4)) -> Figure:
     df = ensure_polars(df)
     r = stats._to_returns(df)
     cumval = stats._cumulative_value(r)
-    running_max = cumval.cum_max()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
     dd = ((cumval - running_max) / running_max).to_numpy()
     dates = df.get_column(COL_DATE).to_numpy()
 
@@ -371,7 +371,7 @@ def plot_yearly_returns(
                 bench_y.get_column("ret").to_list(),
             )
         )
-        bench_vals = np.array([bench_dict.get(y, 0.0) for y in years])
+        bench_vals = np.array([bench_dict.get(y, float("nan")) for y in years])
         ax.bar(
             x + width,
             bench_vals,
@@ -833,6 +833,7 @@ def plot_monte_carlo(
     confidence_level: float = 0.95,
     figsize: tuple = (12, 5),
     _paths_df: pl.DataFrame | None = None,
+    method: str = "bootstrap",
 ) -> Figure:
     """Fan chart of Monte Carlo simulated paths with a confidence band.
 
@@ -842,7 +843,7 @@ def plot_monte_carlo(
     paths_df = (
         _paths_df
         if _paths_df is not None
-        else stats.monte_carlo_paths(df, sims=sims, seed=seed)
+        else stats.monte_carlo_paths(df, sims=sims, seed=seed, method=method)
     )
     steps = paths_df.get_column("step").to_numpy()
     sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
@@ -907,12 +908,13 @@ def plot_monte_carlo_distribution(
     bins: int = 50,
     figsize: tuple = (12, 5),
     _paths_df: pl.DataFrame | None = None,
+    method: str = "bootstrap",
 ) -> Figure:
     """Histogram of max drawdowns across Monte Carlo simulation paths."""
     paths_df = (
         _paths_df
         if _paths_df is not None
-        else stats.monte_carlo_paths(df, sims=sims, seed=seed)
+        else stats.monte_carlo_paths(df, sims=sims, seed=seed, method=method)
     )
     sim_cols = [c for c in paths_df.columns if c.startswith("sim_")]
     cum_paths = paths_df.select(sim_cols).to_numpy()

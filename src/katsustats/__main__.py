@@ -73,6 +73,7 @@ def _cmd_report(args: argparse.Namespace) -> None:
         df,
         benchmark=benchmark,
         rf=args.rf,
+        periods=args.periods,
         title=args.title,
         output=output,
         monte_carlo=args.monte_carlo,
@@ -80,6 +81,7 @@ def _cmd_report(args: argparse.Namespace) -> None:
         mc_bust=args.mc_bust,
         mc_goal=args.mc_goal,
         mc_seed=args.mc_seed,
+        mc_method=args.mc_method,
     )
     print(f"Report written to {output}")
 
@@ -129,6 +131,12 @@ def main() -> None:
         type=float,
         default=0.0,
         help="Annualized risk-free rate (default: 0.0).",
+    )
+    p_report.add_argument(
+        "--periods",
+        type=int,
+        default=252,
+        help="Trading days per year (default: 252). Use 365 for crypto.",
     )
     p_report.add_argument(
         "--benchmark",
@@ -181,6 +189,13 @@ def main() -> None:
         default=None,
         dest="mc_goal",
         help="Return threshold for goal probability, e.g. 0.5 (default: None).",
+    )
+    p_report.add_argument(
+        "--mc-method",
+        choices=["bootstrap", "shuffle"],
+        default="bootstrap",
+        dest="mc_method",
+        help="Monte Carlo resampling method (default: bootstrap).",
     )
     p_report.set_defaults(func=_cmd_report)
 

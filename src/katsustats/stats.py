@@ -46,6 +46,8 @@ def _cumulative_value(returns: pl.Series) -> pl.Series:
 def total_return(df: DataFrameLike) -> float:
     """Total compounded return over the full period."""
     r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
     return float((r + 1).product() - 1)
 
 
@@ -97,11 +99,18 @@ def sortino(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     return float(excess.mean() / (downside_sq_mean**0.5) * np.sqrt(periods))
 
 
+def _float_or_nan(value: object) -> float:
+    """Convert a Polars aggregate result to float, returning NaN for None."""
+    if value is None:
+        return float("nan")
+    return float(value)
+
+
 def max_drawdown(df: DataFrameLike) -> float:
     """Maximum drawdown (returned as a negative value)."""
     r = _to_returns(df)
     cumval = _cumulative_value(r)
-    running_max = cumval.cum_max()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
     dd = (cumval - running_max) / running_max
     return float(dd.min())
 
@@ -135,12 +144,12 @@ def profit_factor(df: DataFrameLike) -> float:
 
 def best_day(df: DataFrameLike) -> float:
     """Best single-day return."""
-    return float(_to_returns(df).max())
+    return _float_or_nan(_to_returns(df).max())
 
 
 def worst_day(df: DataFrameLike) -> float:
     """Worst single-day return."""
-    return float(_to_returns(df).min())
+    return _float_or_nan(_to_returns(df).min())
 
 
 def avg_win(df: DataFrameLike) -> float:
@@ -164,7 +173,7 @@ def avg_loss(df: DataFrameLike) -> float:
 def value_at_risk(df: DataFrameLike, alpha: float = 0.05) -> float:
     """Daily Value at Risk at the given confidence level."""
     r = _to_returns(df)
-    return float(r.quantile(alpha, interpolation="linear"))
+    return _float_or_nan(r.quantile(alpha, interpolation="linear"))
 
 
 def cvar(df: DataFrameLike, alpha: float = 0.05) -> float:
@@ -239,13 +248,13 @@ def recovery_factor(df: DataFrameLike) -> float:
 def skewness(df: DataFrameLike) -> float:
     """Skewness of daily returns."""
     r = _to_returns(df)
-    return float(r.skew())
+    return _float_or_nan(r.skew())
 
 
 def kurtosis(df: DataFrameLike) -> float:
     """Excess kurtosis of daily returns."""
     r = _to_returns(df)
-    return float(r.kurtosis())
+    return _float_or_nan(r.kurtosis())
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +386,7 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     r = _to_returns(df)
     dates = df.get_column(COL_DATE).to_list()
     cumval = _cumulative_value(r)
-    running_max = cumval.cum_max()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
     dd = (cumval - running_max) / running_max
 
     # Identify drawdown periods (contiguous blocks where dd < 0)
@@ -489,10 +498,13 @@ def information_ratio(
         base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
     excess = joined.get_column(COL_RETURNS) - joined.get_column("_base_returns")
-    te = float(excess.std())
-    if te == 0:
+    te = excess.std()
+    if te is None:
+        return float("nan")
+    te_f = float(te)
+    if te_f == 0:
         return 0.0
-    return float(excess.mean() / te * np.sqrt(periods))
+    return float(excess.mean() / te_f * np.sqrt(periods))
 
 
 def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
@@ -1090,14 +1102,21 @@ def _distribution_stats(
     return result
 
 
-def _build_sim_returns(arr: np.ndarray, sims: int, seed: int | None) -> np.ndarray:
+def _build_sim_returns(
+    arr: np.ndarray, sims: int, seed: int | None, method: str = "bootstrap"
+) -> np.ndarray:
     """Return (n_periods, sims) raw returns matrix. Column 0 = original."""
+    if method not in ("bootstrap", "shuffle"):
+        raise ValueError(f"method must be 'bootstrap' or 'shuffle', got {method!r}")
     n = len(arr)
     rng = np.random.default_rng(seed)
     sim_returns = np.empty((n, sims))
     sim_returns[:, 0] = arr
     for i in range(1, sims):
-        sim_returns[:, i] = rng.permutation(arr)
+        if method == "bootstrap":
+            sim_returns[:, i] = arr[rng.integers(0, n, n)]
+        else:
+            sim_returns[:, i] = rng.permutation(arr)
     return sim_returns
 
 
@@ -1108,28 +1127,38 @@ def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
     return ((prices - running_max) / running_max).min(axis=0)
 
 
-def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
+def _simulate_paths(
+    r: pl.Series, sims: int, seed: int | None, method: str = "bootstrap"
+) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
     if sims < 1:
         raise ValueError("sims must be >= 1")
     arr = r.drop_nulls().to_numpy()
     if len(arr) == 0:
         raise ValueError("monte carlo requires at least one return")
-    return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
+    return np.cumprod(1 + _build_sim_returns(arr, sims, seed, method), axis=0) - 1
 
 
 def monte_carlo_paths(
     df: DataFrameLike,
     sims: int = 1000,
     seed: int | None = None,
+    method: str = "bootstrap",
 ) -> pl.DataFrame:
-    """Simulate return paths by shuffling historical returns.
+    """Simulate return paths by resampling historical returns.
 
     Returns a wide Polars DataFrame with columns ['step', 'sim_0', 'sim_1', ...]
     of cumulative compounded returns. 'sim_0' is the original (unshuffled) path.
+
+    Args:
+        df: Return series.
+        sims: Number of simulation paths.
+        seed: Random seed for reproducibility.
+        method: Resampling method — ``"bootstrap"`` (default, with replacement)
+            or ``"shuffle"`` (without replacement).
     """
     r = _to_returns(df)
-    cum_paths = _simulate_paths(r, sims, seed)
+    cum_paths = _simulate_paths(r, sims, seed, method)
     n = cum_paths.shape[0]
     data: dict[str, object] = {"step": np.arange(1, n + 1)}
     for i in range(sims):
@@ -1145,12 +1174,23 @@ def monte_carlo_summary(
     rf: float = 0.0,
     periods: int = 252,
     seed: int | None = None,
+    method: str = "bootstrap",
 ) -> dict:
     """Probabilistic risk summary via Monte Carlo path simulation.
 
-    Shuffles historical returns sims times, then returns distributions of
+    Resamples historical returns sims times, then returns distributions of
     terminal value, max drawdown, Sharpe ratio, and CAGR, plus optional
     bust and goal probabilities.
+
+    Args:
+        df: Return series.
+        sims: Number of simulation paths.
+        bust: Drawdown threshold for bust probability.
+        goal: Return threshold for goal probability.
+        rf: Annualized risk-free rate.
+        periods: Trading days per year.
+        seed: Random seed for reproducibility.
+        method: Resampling method — ``"bootstrap"`` (default) or ``"shuffle"``.
 
     Returns a dict with keys: terminal, maxdd, sharpe, cagr,
     bust_probability, goal_probability, sims, seed.
@@ -1162,7 +1202,7 @@ def monte_carlo_summary(
     if sims < 1:
         raise ValueError("sims must be >= 1")
     n = len(arr)
-    sim_returns = _build_sim_returns(arr, sims, seed)
+    sim_returns = _build_sim_returns(arr, sims, seed, method)
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
     terminal = cum_paths[-1, :]
 
