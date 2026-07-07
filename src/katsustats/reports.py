@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import datetime as _dt
+import html as _html
 import io
 import json as _json
 import math
@@ -20,6 +21,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from . import plots, stats
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, ensure_polars
 
 _COMPARISON_KEYS = {
@@ -47,28 +49,35 @@ def _print_df(df: pl.DataFrame, title: str = "") -> None:
         print(f"  {title}")
         print(f"{'=' * 60}")
 
-    # Get column widths
     cols = df.columns
+    if not cols:
+        print()
+        return
+
     data = df.to_dict(as_series=False)
+
+    formatted_data = {}
     widths = {}
     for col in cols:
-        max_w = len(col)
-        for val in data[col]:
-            max_w = max(max_w, len(_format_cell(col, val)))
-        widths[col] = max_w + 2
+        formatted_col = [_format_cell(col, val) for val in data[col]]
+        formatted_data[col] = formatted_col
+        max_len = max((len(val) for val in formatted_col), default=0)
+        widths[col] = max(len(col), max_len) + 2
 
-    # Header
     header = "  ".join(str(col).rjust(widths[col]) for col in cols)
     print(header)
     print("  ".join("-" * widths[col] for col in cols))
 
-    # Rows
-    n_rows = len(data[cols[0]])
-    for i in range(n_rows):
-        row = "  ".join(
-            _format_cell(col, data[col][i]).rjust(widths[col]) for col in cols
-        )
-        print(row)
+    if len(data[cols[0]]) == 0:
+        print()
+        return
+
+    padded_cols = [
+        [val.rjust(widths[col]) for val in formatted_data[col]] for col in cols
+    ]
+
+    for row in zip(*padded_cols):
+        print("  ".join(row))
     print()
 
 
@@ -124,10 +133,12 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     n_rows = len(data[cols[0]])
 
     rows_html: list[str] = []
-    header_cells = "".join(f"<th>{col}</th>" for col in cols)
+    header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
     rows_html.append(f"<tr>{header_cells}</tr>")
     for i in range(n_rows):
-        cells = "".join(f"<td>{_format_cell(col, data[col][i])}</td>" for col in cols)
+        cells = "".join(
+            f"<td>{_html.escape(_format_cell(col, data[col][i]))}</td>" for col in cols
+        )
         rows_html.append(f"<tr>{cells}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
@@ -138,22 +149,24 @@ def _validate_and_sort(
     benchmark: DataFrameLike | None,
 ) -> tuple[pl.DataFrame, pl.DataFrame | None]:
     """Normalise, validate, and sort inputs; return (returns, benchmark) as Polars frames."""
-    returns = ensure_polars(returns, name="returns")
-    assert "date" in returns.columns, "returns must have a 'date' column"
-    assert "returns" in returns.columns, "returns must have a 'returns' column"
+    returns = ensure_polars(returns, name=COL_RETURNS)
+    assert COL_DATE in returns.columns, "returns must have a 'date' column"
+    assert COL_RETURNS in returns.columns, "returns must have a 'returns' column"
     if benchmark is not None:
         benchmark = ensure_polars(benchmark, name="benchmark")
-        assert "date" in benchmark.columns, "benchmark must have a 'date' column"
-        assert "returns" in benchmark.columns, "benchmark must have a 'returns' column"
-    returns = returns.sort("date")
-    assert returns["date"].n_unique() == returns.height, (
+        assert COL_DATE in benchmark.columns, "benchmark must have a 'date' column"
+        assert COL_RETURNS in benchmark.columns, (
+            "benchmark must have a 'returns' column"
+        )
+    returns = returns.sort(COL_DATE)
+    assert returns[COL_DATE].n_unique() == returns.height, (
         "Expected `returns` to have unique dates after `ensure_polars()` "
         "normalization/compounding. If this fails, check the input for "
         "duplicate same-date rows or investigate whether normalization "
         "did not run as expected."
     )
     if benchmark is not None:
-        benchmark = benchmark.sort("date")
+        benchmark = benchmark.sort(COL_DATE)
     return returns, benchmark
 
 
@@ -274,14 +287,16 @@ def _markdown_report(payload: dict[str, object]) -> str:
     benchmark_periods = None if benchmark is None else benchmark["period_performance"]
     for label in stats._PERIOD_LABELS:
         row = [
-            label,
+            label.value,
             _format_markdown_value(
-                strategy["period_performance"][label].get("strategy"), "pct"
+                strategy["period_performance"][label.value].get("strategy"), "pct"
             ),
         ]
         if benchmark_periods is not None:
             row.append(
-                _format_markdown_value(benchmark_periods[label].get("benchmark"), "pct")
+                _format_markdown_value(
+                    benchmark_periods[label.value].get("benchmark"), "pct"
+                )
             )
         period_rows.append(row)
     lines.extend([_markdown_table(period_headers, period_rows), ""])
@@ -404,7 +419,7 @@ def _metadata_payload(
     periods: int,
 ) -> dict[str, object]:
     """Build shared metadata for structured report outputs."""
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     return {
         "title": title,
         "start_date": _json_safe_value(dates.min()),
@@ -428,6 +443,7 @@ def _report_payload(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> dict[str, object]:
     """Build an AI-friendly structured report payload."""
     benchmark_summary: dict[str, float] | None = None
@@ -506,6 +522,7 @@ def _report_payload(
                 rf=rf,
                 periods=periods,
                 seed=mc_seed,
+                method=mc_method,
             )
             if monte_carlo
             else None
@@ -764,6 +781,7 @@ def full(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> dict:
     """
     Generate a full backtest report with metrics and plots.
@@ -845,7 +863,9 @@ def full(
     mc_summary = None
     if monte_carlo:
         effective_seed = _resolve_mc_seed(mc_seed)
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
+        mc_paths = stats.monte_carlo_paths(
+            returns, sims=mc_sims, seed=effective_seed, method=mc_method
+        )
         _handle_fig(
             "monte_carlo",
             plots.plot_monte_carlo(
@@ -854,6 +874,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         _handle_fig(
@@ -864,6 +885,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         mc_summary = stats.monte_carlo_summary(
@@ -874,6 +896,7 @@ def full(
             rf=rf,
             periods=periods,
             seed=effective_seed,
+            method=mc_method,
         )
 
     return {
@@ -898,6 +921,7 @@ def html(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate a self-contained HTML backtest report.
@@ -934,6 +958,7 @@ def html(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     finally:
         plt.switch_backend(orig_backend)
@@ -951,6 +976,7 @@ def json(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate an AI-friendly JSON backtest report.
@@ -1010,6 +1036,7 @@ def json(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     )
 
@@ -1032,6 +1059,7 @@ def markdown(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate a Markdown backtest summary for humans and AI agents.
@@ -1068,6 +1096,7 @@ def markdown(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     )
 
@@ -1091,12 +1120,13 @@ def _build_html(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """Internal: build the HTML report string."""
     returns, benchmark = _validate_and_sort(returns, benchmark)
 
     # ── Metadata ────────────────────────────────────────────────────
-    dates = returns.get_column("date")
+    dates = returns.get_column(COL_DATE)
     date_start = str(dates.min())
     date_end = str(dates.max())
     n_days = len(dates)
@@ -1119,10 +1149,12 @@ def _build_html(
     cards: list[str] = []
     for label, val, is_pct in highlight_defs:
         fmt_val = f"{val:.2%}" if is_pct else f"{val:.2f}"
-        css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
-        # Max drawdown is always negative, invert color logic
         if label == "Max Drawdown":
-            css_cls = "neg" if val < -0.1 else "pos"
+            css_cls = "neg" if val < 0 else ""
+        elif label == "Volatility":
+            css_cls = ""
+        else:
+            css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
         cards.append(
             f'<div class="highlight-card">'
             f'<div class="label">{label}</div>'
@@ -1224,7 +1256,9 @@ def _build_html(
     # ── Monte Carlo Analysis (full-width) ───────────────────────────
     if monte_carlo:
         effective_seed = _resolve_mc_seed(mc_seed)
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
+        mc_paths = stats.monte_carlo_paths(
+            returns, sims=mc_sims, seed=effective_seed, method=mc_method
+        )
         mc_b64 = _fig_to_base64(
             plots.plot_monte_carlo(
                 returns,
@@ -1232,6 +1266,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_dist_b64 = _fig_to_base64(
@@ -1241,6 +1276,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_sum = stats.monte_carlo_summary(
@@ -1251,6 +1287,7 @@ def _build_html(
             rf=rf,
             periods=periods,
             seed=effective_seed,
+            method=mc_method,
         )
         t = mc_sum["terminal"]
         md = mc_sum["maxdd"]
@@ -1312,8 +1349,9 @@ def _build_html(
         regime_section = ""
 
     # ── Render ──────────────────────────────────────────────────────
+    safe_title = _html.escape(title)
     rendered = _HTML_TEMPLATE.format(
-        title=title,
+        title=safe_title,
         date_range=date_range,
         n_days=n_days,
         highlight_cards=highlight_cards,

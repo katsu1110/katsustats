@@ -306,6 +306,21 @@ class TestReportCommand:
             main()
         assert "file not found" in str(exc_info.value)
 
+    def test_invalid_csv_parsing_failure(self, tmp_path: Path, monkeypatch):
+        bad = tmp_path / "malformed.csv"
+        # Create a CSV with ragged lines that polars read_csv will reject
+        bad.write_text(
+            "date,returns\n2020-01-01\n2020-01-02,0.01,0.02\n", encoding="utf-8"
+        )
+
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "report", str(bad), "-o", str(tmp_path / "out.html")],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert "Failed to parse file" in str(exc_info.value)
+
     def test_missing_column_exits_with_clear_message(
         self, csv_file: Path, tmp_path: Path, monkeypatch
     ):
@@ -405,6 +420,79 @@ class TestMonteCarloCliFlags:
         mc = payload["monte_carlo"]
         assert mc["bust_probability"] is not None
         assert mc["goal_probability"] is not None
+
+
+class TestPeriodsAndMcMethodCliFlags:
+    def test_periods_flag(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "--periods",
+                "365",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["metadata"]["periods"] == 365
+
+    def test_mc_method_shuffle(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "--monte-carlo",
+                "--mc-sims",
+                "50",
+                "--mc-seed",
+                "0",
+                "--mc-method",
+                "shuffle",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert payload["monte_carlo"] is not None
+
+    def test_mc_method_default_bootstrap(
+        self, csv_file: Path, tmp_path: Path, monkeypatch
+    ):
+        out = tmp_path / "out.json"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "report",
+                str(csv_file),
+                "--format",
+                "json",
+                "--monte-carlo",
+                "--mc-sims",
+                "50",
+                "--mc-seed",
+                "0",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        mc = payload["monte_carlo"]
+        assert mc["terminal"]["min"] < mc["terminal"]["max"]
 
 
 # ---------------------------------------------------------------------------

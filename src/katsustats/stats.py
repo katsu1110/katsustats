@@ -8,9 +8,13 @@ scalar metric values or Polars DataFrames.
 
 from __future__ import annotations
 
+import datetime as dt
+import enum
+
 import numpy as np
 import polars as pl
 
+from ._constants import COL_DATE, COL_RETURNS
 from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 
 # ---------------------------------------------------------------------------
@@ -21,7 +25,7 @@ from ._dataframe import DataFrameLike, _compound_by_date, ensure_polars
 def _to_returns(df: DataFrameLike, name: str = "df") -> pl.Series:
     """Extract the returns column as a Polars Series."""
     df = ensure_polars(df, name=name)
-    return df.get_column("returns")
+    return df.get_column(COL_RETURNS)
 
 
 def _cumulative(returns: pl.Series) -> pl.Series:
@@ -42,6 +46,8 @@ def _cumulative_value(returns: pl.Series) -> pl.Series:
 def total_return(df: DataFrameLike) -> float:
     """Total compounded return over the full period."""
     r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
     return float((r + 1).product() - 1)
 
 
@@ -50,7 +56,7 @@ def cagr(df: DataFrameLike, periods: int = 252) -> float:
     r = _to_returns(df)
     n = r.len()
     if n == 0:
-        return 0.0
+        return float("nan")
     total = float((r + 1).product())
     years = n / periods
     if years <= 0 or total <= 0:
@@ -93,11 +99,18 @@ def sortino(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
     return float(excess.mean() / (downside_sq_mean**0.5) * np.sqrt(periods))
 
 
+def _float_or_nan(value: object) -> float:
+    """Convert a Polars aggregate result to float, returning NaN for None."""
+    if value is None:
+        return float("nan")
+    return float(value)
+
+
 def max_drawdown(df: DataFrameLike) -> float:
     """Maximum drawdown (returned as a negative value)."""
     r = _to_returns(df)
     cumval = _cumulative_value(r)
-    running_max = cumval.cum_max()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
     dd = (cumval - running_max) / running_max
     return float(dd.min())
 
@@ -131,12 +144,12 @@ def profit_factor(df: DataFrameLike) -> float:
 
 def best_day(df: DataFrameLike) -> float:
     """Best single-day return."""
-    return float(_to_returns(df).max())
+    return _float_or_nan(_to_returns(df).max())
 
 
 def worst_day(df: DataFrameLike) -> float:
     """Worst single-day return."""
-    return float(_to_returns(df).min())
+    return _float_or_nan(_to_returns(df).min())
 
 
 def avg_win(df: DataFrameLike) -> float:
@@ -160,7 +173,7 @@ def avg_loss(df: DataFrameLike) -> float:
 def value_at_risk(df: DataFrameLike, alpha: float = 0.05) -> float:
     """Daily Value at Risk at the given confidence level."""
     r = _to_returns(df)
-    return float(r.quantile(alpha, interpolation="linear"))
+    return _float_or_nan(r.quantile(alpha, interpolation="linear"))
 
 
 def cvar(df: DataFrameLike, alpha: float = 0.05) -> float:
@@ -235,13 +248,13 @@ def recovery_factor(df: DataFrameLike) -> float:
 def skewness(df: DataFrameLike) -> float:
     """Skewness of daily returns."""
     r = _to_returns(df)
-    return float(r.skew())
+    return _float_or_nan(r.skew())
 
 
 def kurtosis(df: DataFrameLike) -> float:
     """Excess kurtosis of daily returns."""
     r = _to_returns(df)
-    return float(r.kurtosis())
+    return _float_or_nan(r.kurtosis())
 
 
 # ---------------------------------------------------------------------------
@@ -271,17 +284,17 @@ def _longest_streak(r: pl.Series, positive: bool) -> int:
 def _period_returns(df: pl.DataFrame, every: str) -> pl.Series:
     """Compounded returns aggregated by calendar period ('1mo' or '1y')."""
     return (
-        df.with_columns(pl.col("date").cast(pl.Date))
-        .sort("date")
-        .group_by_dynamic("date", every=every)
-        .agg((pl.col("returns") + 1).product() - 1)
-        .get_column("returns")
+        df.with_columns(pl.col(COL_DATE).cast(pl.Date))
+        .sort(COL_DATE)
+        .group_by_dynamic(COL_DATE, every=every)
+        .agg((pl.col(COL_RETURNS) + 1).product() - 1)
+        .get_column(COL_RETURNS)
     )
 
 
 def _daily_returns(df: pl.DataFrame) -> pl.DataFrame:
     """Compound returns to one row per calendar date."""
-    normalised = df.with_columns(pl.col("date").cast(pl.Date)).sort("date")
+    normalised = df.with_columns(pl.col(COL_DATE).cast(pl.Date)).sort(COL_DATE)
     return _compound_by_date(normalised)
 
 
@@ -371,9 +384,9 @@ def drawdown_details(df: DataFrameLike, top_n: int = 5) -> pl.DataFrame:
     """
     df = ensure_polars(df)
     r = _to_returns(df)
-    dates = df.get_column("date").to_list()
+    dates = df.get_column(COL_DATE).to_list()
     cumval = _cumulative_value(r)
-    running_max = cumval.cum_max()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
     dd = (cumval - running_max) / running_max
 
     # Identify drawdown periods (contiguous blocks where dd < 0)
@@ -448,9 +461,9 @@ def alpha_beta(
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    r = joined.get_column("returns").to_numpy()
+    r = joined.get_column(COL_RETURNS).to_numpy()
     b = joined.get_column("_base_returns").to_numpy()
 
     cov = np.cov(r, b)
@@ -468,9 +481,9 @@ def correlation(df: DataFrameLike, base_df: DataFrameLike) -> float:
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    r = joined.get_column("returns").to_numpy()
+    r = joined.get_column(COL_RETURNS).to_numpy()
     b = joined.get_column("_base_returns").to_numpy()
     return float(np.corrcoef(r, b)[0, 1])
 
@@ -482,13 +495,16 @@ def information_ratio(
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    excess = joined.get_column("returns") - joined.get_column("_base_returns")
-    te = float(excess.std())
-    if te == 0:
+    excess = joined.get_column(COL_RETURNS) - joined.get_column("_base_returns")
+    te = excess.std()
+    if te is None:
+        return float("nan")
+    te_f = float(te)
+    if te_f == 0:
         return 0.0
-    return float(excess.mean() / te * np.sqrt(periods))
+    return float(excess.mean() / te_f * np.sqrt(periods))
 
 
 def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
@@ -496,9 +512,9 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, "base_df")
     joined = df.join(
-        base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
     )
-    strat_ret = float((joined.get_column("returns") + 1).product() - 1)
+    strat_ret = float((joined.get_column(COL_RETURNS) + 1).product() - 1)
     bench_ret = float((joined.get_column("_base_returns") + 1).product() - 1)
     return strat_ret - bench_ret
 
@@ -527,21 +543,17 @@ def regime_stats(
 
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
-    assert "date" in df.columns, "df must have a 'date' column"
-    assert "returns" in df.columns, "df must have a 'returns' column"
-    assert "date" in base_df.columns, "base_df must have a 'date' column"
-    assert "returns" in base_df.columns, "base_df must have a 'returns' column"
 
-    df = df.sort("date")
-    base_df = base_df.sort("date")
-    assert df["date"].n_unique() == df.height, "df must have one row per date"
-    assert base_df["date"].n_unique() == base_df.height, (
+    df = df.sort(COL_DATE)
+    base_df = base_df.sort(COL_DATE)
+    assert df[COL_DATE].n_unique() == df.height, "df must have one row per date"
+    assert base_df[COL_DATE].n_unique() == base_df.height, (
         "base_df must have one row per date"
     )
 
     base_features = base_df.with_columns(
-        ((pl.col("returns") + 1).cum_prod() - 1).alias("_cumret"),
-        pl.col("returns")
+        ((pl.col(COL_RETURNS) + 1).cum_prod() - 1).alias("_cumret"),
+        pl.col(COL_RETURNS)
         .rolling_std(window_size=vol_window, ddof=1)
         .alias("_rolling_vol"),
     ).with_columns(
@@ -567,9 +579,9 @@ def regime_stats(
             .with_columns(
                 pl.concat_str(["_trend", "_vol_regime"], separator="_").alias("regime")
             )
-            .select(["date", "regime"])
+            .select([COL_DATE, "regime"])
         )
-        aligned = df.join(base_regimes, on="date", how="inner")
+        aligned = df.join(base_regimes, on=COL_DATE, how="inner")
 
     regimes = [
         "bull_low_vol",
@@ -631,13 +643,13 @@ def day_of_week_stats(df: DataFrameLike) -> pl.DataFrame:
     """
     df = ensure_polars(df)
     result = (
-        df.with_columns(pl.col("date").cast(pl.Date).dt.weekday().alias("dow"))
+        df.with_columns(pl.col(COL_DATE).cast(pl.Date).dt.weekday().alias("dow"))
         .group_by("dow")
         .agg(
-            pl.col("returns").mean().alias("mean_return"),
-            (pl.col("returns") > 0).mean().alias("win_rate"),
-            ((pl.col("returns") + 1).product() - 1).alias("total_return"),
-            pl.col("returns").count().alias("count"),
+            pl.col(COL_RETURNS).mean().alias("mean_return"),
+            (pl.col(COL_RETURNS) > 0).mean().alias("win_rate"),
+            ((pl.col(COL_RETURNS) + 1).product() - 1).alias("total_return"),
+            pl.col(COL_RETURNS).count().alias("count"),
         )
         .sort("dow")
         .with_columns(
@@ -663,11 +675,13 @@ def rolling_sharpe(
     """Rolling Sharpe ratio over a given window."""
     df = ensure_polars(df)
     return (
-        df.sort("date")
+        df.sort(COL_DATE)
         .with_columns(
             [
-                pl.col("returns").rolling_mean(window_size=window).alias("_rm"),
-                pl.col("returns").rolling_std(window_size=window, ddof=1).alias("_rs"),
+                pl.col(COL_RETURNS).rolling_mean(window_size=window).alias("_rm"),
+                pl.col(COL_RETURNS)
+                .rolling_std(window_size=window, ddof=1)
+                .alias("_rs"),
             ]
         )
         .with_columns(
@@ -675,7 +689,7 @@ def rolling_sharpe(
             .then(pl.col("_rm") / pl.col("_rs") * float(periods**0.5))
             .alias("rolling_sharpe")
         )
-        .select(["date", "rolling_sharpe"])
+        .select([COL_DATE, "rolling_sharpe"])
     )
 
 
@@ -685,14 +699,14 @@ def rolling_volatility(
     """Rolling annualized volatility over a given window."""
     df = ensure_polars(df)
     return (
-        df.sort("date")
+        df.sort(COL_DATE)
         .with_columns(
             (
-                pl.col("returns").rolling_std(window_size=window, ddof=1)
+                pl.col(COL_RETURNS).rolling_std(window_size=window, ddof=1)
                 * float(periods**0.5)
             ).alias("rolling_vol")
         )
-        .select(["date", "rolling_vol"])
+        .select([COL_DATE, "rolling_vol"])
     )
 
 
@@ -895,38 +909,56 @@ def summary_metrics(
 # Period Performance
 # ---------------------------------------------------------------------------
 
-_PERIOD_LABELS = ["MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"]
+
+class PeriodLabel(str, enum.Enum):
+    MTD = "MTD"
+    QTD = "QTD"
+    YTD = "YTD"
+    ONE_YEAR = "1Y"
+    THREE_YEAR = "3Y"
+    FIVE_YEAR = "5Y"
+    SI = "SI"
 
 
-def _period_cutoff(anchor: pl.Date, label: str) -> pl.Date | None:
+_PERIOD_LABELS = [
+    PeriodLabel.MTD,
+    PeriodLabel.QTD,
+    PeriodLabel.YTD,
+    PeriodLabel.ONE_YEAR,
+    PeriodLabel.THREE_YEAR,
+    PeriodLabel.FIVE_YEAR,
+    PeriodLabel.SI,
+]
+
+
+def _subtract_years(d: dt.date, n: int) -> dt.date:
+    try:
+        return dt.date(d.year - n, d.month, d.day)
+    except ValueError:  # Feb 29 on non-leap year
+        return dt.date(d.year - n, d.month, d.day - 1)
+
+
+def _period_cutoff(anchor: pl.Date, label: PeriodLabel) -> pl.Date | None:
     """Return the start date for a named period, or None if insufficient data."""
-    import datetime as dt
-
     a: dt.date = anchor
-    if label == "MTD":
+    if label == PeriodLabel.MTD:
         return dt.date(a.year, a.month, 1)
-    if label == "QTD":
+    if label == PeriodLabel.QTD:
         q_start_month = ((a.month - 1) // 3) * 3 + 1
         return dt.date(a.year, q_start_month, 1)
-    if label == "YTD":
+    if label == PeriodLabel.YTD:
         return dt.date(a.year, 1, 1)
 
-    def _subtract_years(d: dt.date, n: int) -> dt.date:
-        try:
-            return dt.date(d.year - n, d.month, d.day)
-        except ValueError:  # Feb 29 on non-leap year
-            return dt.date(d.year - n, d.month, d.day - 1)
-
-    if label == "1Y":
+    if label == PeriodLabel.ONE_YEAR:
         return _subtract_years(a, 1)
-    if label == "3Y":
+    if label == PeriodLabel.THREE_YEAR:
         return _subtract_years(a, 3)
-    if label == "5Y":
+    if label == PeriodLabel.FIVE_YEAR:
         return _subtract_years(a, 5)
     return None  # SI — caller uses full series
 
 
-_TRAILING_LABELS = {"1Y", "3Y", "5Y"}
+_TRAILING_LABELS = {PeriodLabel.ONE_YEAR, PeriodLabel.THREE_YEAR, PeriodLabel.FIVE_YEAR}
 
 
 def _trailing_return(
@@ -944,10 +976,10 @@ def _trailing_return(
         return float("nan")
     if cutoff is None:
         return float(total_return(df))
-    first = df.get_column("date").min()
+    first = df.get_column(COL_DATE).min()
     if require_full_window and cutoff <= first:
         return float("nan")
-    subset = df.filter(pl.col("date") >= cutoff)
+    subset = df.filter(pl.col(COL_DATE) >= cutoff)
     return float(total_return(subset)) if subset.height > 0 else float("nan")
 
 
@@ -965,36 +997,60 @@ def period_performance_raw(
     both columns in the table always reflect the same date range.
     """
     df = _daily_returns(ensure_polars(df))
-    if base_df is not None:
+    has_benchmark = base_df is not None
+    if has_benchmark:
         base_df = _daily_returns(ensure_polars(base_df, name="base_df"))
         # Align to common dates so strategy and benchmark use the same anchor.
-        joined = df.join(
-            base_df.rename({"returns": "_base_returns"}), on="date", how="inner"
-        ).sort("date")
-        df = joined.select(["date", "returns"])
-        base_df = joined.select(
-            [pl.col("date"), pl.col("_base_returns").alias("returns")]
-        )
+        df = df.join(
+            base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+        ).sort(COL_DATE)
 
     if df.height == 0:
         row: dict[str, float] = {"strategy": float("nan")}
-        if base_df is not None:
+        if has_benchmark:
             row["benchmark"] = float("nan")
-        return {lbl: dict(row) for lbl in _PERIOD_LABELS}
+        return {lbl.value: dict(row) for lbl in _PERIOD_LABELS}
 
-    anchor = df.get_column("date").max()
-    result: dict[str, dict[str, float]] = {}
+    anchor = df.get_column(COL_DATE).max()
+    first = df.get_column(COL_DATE).min()
+
+    exprs = []
+    cols = [(COL_RETURNS, "strategy")]
+    if has_benchmark:
+        cols.append(("_base_returns", "benchmark"))
+
     for lbl in _PERIOD_LABELS:
         cutoff = _period_cutoff(anchor, lbl)  # None for SI
         full_window = lbl in _TRAILING_LABELS
-        entry: dict[str, float] = {
-            "strategy": _trailing_return(df, cutoff, require_full_window=full_window)
-        }
-        if base_df is not None:
-            entry["benchmark"] = _trailing_return(
-                base_df, cutoff, require_full_window=full_window
-            )
-        result[lbl] = entry
+
+        if cutoff is not None:
+            mask = pl.col(COL_DATE) >= cutoff
+
+        for col_name, prefix in cols:
+            out_key = f"{prefix}_{lbl.value}"
+            if cutoff is None:
+                expr = (pl.col(col_name) + 1).product() - 1
+            elif full_window and cutoff <= first:
+                expr = pl.lit(float("nan"))
+            else:
+                filtered = pl.col(col_name).filter(mask)
+                expr = (
+                    pl.when(filtered.count() > 0)
+                    .then((filtered + 1).product() - 1)
+                    .otherwise(pl.lit(float("nan")))
+                )
+
+            exprs.append(expr.alias(out_key))
+
+    res_df = df.select(exprs)
+    res_dict = res_df.to_dicts()[0]
+
+    result: dict[str, dict[str, float]] = {}
+    for lbl in _PERIOD_LABELS:
+        entry: dict[str, float] = {"strategy": float(res_dict[f"strategy_{lbl.value}"])}
+        if has_benchmark:
+            entry["benchmark"] = float(res_dict[f"benchmark_{lbl.value}"])
+        result[lbl.value] = entry
 
     return result
 
@@ -1016,8 +1072,8 @@ def period_performance(
     rows_bench: list[str] = []
 
     for lbl in _PERIOD_LABELS:
-        v = raw[lbl]
-        rows_period.append(lbl)
+        v = raw[lbl.value]
+        rows_period.append(lbl.value)
         sv = v["strategy"]
         rows_strat.append("—" if (sv != sv) else f"{sv:.2%}")
         if base_df is not None:
@@ -1070,14 +1126,21 @@ def _distribution_stats(
     return result
 
 
-def _build_sim_returns(arr: np.ndarray, sims: int, seed: int | None) -> np.ndarray:
+def _build_sim_returns(
+    arr: np.ndarray, sims: int, seed: int | None, method: str = "bootstrap"
+) -> np.ndarray:
     """Return (n_periods, sims) raw returns matrix. Column 0 = original."""
+    if method not in ("bootstrap", "shuffle"):
+        raise ValueError(f"method must be 'bootstrap' or 'shuffle', got {method!r}")
     n = len(arr)
     rng = np.random.default_rng(seed)
     sim_returns = np.empty((n, sims))
     sim_returns[:, 0] = arr
     for i in range(1, sims):
-        sim_returns[:, i] = rng.permutation(arr)
+        if method == "bootstrap":
+            sim_returns[:, i] = arr[rng.integers(0, n, n)]
+        else:
+            sim_returns[:, i] = rng.permutation(arr)
     return sim_returns
 
 
@@ -1088,26 +1151,38 @@ def _sim_max_drawdowns(cum_paths: np.ndarray) -> np.ndarray:
     return ((prices - running_max) / running_max).min(axis=0)
 
 
-def _simulate_paths(r: pl.Series, sims: int, seed: int | None) -> np.ndarray:
+def _simulate_paths(
+    r: pl.Series, sims: int, seed: int | None, method: str = "bootstrap"
+) -> np.ndarray:
     """Return (n_periods, sims) cumulative-returns array. Column 0 = original."""
-    assert sims >= 1, "sims must be >= 1"
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
-    return np.cumprod(1 + _build_sim_returns(arr, sims, seed), axis=0) - 1
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
+    return np.cumprod(1 + _build_sim_returns(arr, sims, seed, method), axis=0) - 1
 
 
 def monte_carlo_paths(
     df: DataFrameLike,
     sims: int = 1000,
     seed: int | None = None,
+    method: str = "bootstrap",
 ) -> pl.DataFrame:
-    """Simulate return paths by shuffling historical returns.
+    """Simulate return paths by resampling historical returns.
 
     Returns a wide Polars DataFrame with columns ['step', 'sim_0', 'sim_1', ...]
     of cumulative compounded returns. 'sim_0' is the original (unshuffled) path.
+
+    Args:
+        df: Return series.
+        sims: Number of simulation paths.
+        seed: Random seed for reproducibility.
+        method: Resampling method — ``"bootstrap"`` (default, with replacement)
+            or ``"shuffle"`` (without replacement).
     """
     r = _to_returns(df)
-    cum_paths = _simulate_paths(r, sims, seed)
+    cum_paths = _simulate_paths(r, sims, seed, method)
     n = cum_paths.shape[0]
     data: dict[str, object] = {"step": np.arange(1, n + 1)}
     for i in range(sims):
@@ -1123,22 +1198,35 @@ def monte_carlo_summary(
     rf: float = 0.0,
     periods: int = 252,
     seed: int | None = None,
+    method: str = "bootstrap",
 ) -> dict:
     """Probabilistic risk summary via Monte Carlo path simulation.
 
-    Shuffles historical returns sims times, then returns distributions of
+    Resamples historical returns sims times, then returns distributions of
     terminal value, max drawdown, Sharpe ratio, and CAGR, plus optional
     bust and goal probabilities.
+
+    Args:
+        df: Return series.
+        sims: Number of simulation paths.
+        bust: Drawdown threshold for bust probability.
+        goal: Return threshold for goal probability.
+        rf: Annualized risk-free rate.
+        periods: Trading days per year.
+        seed: Random seed for reproducibility.
+        method: Resampling method — ``"bootstrap"`` (default) or ``"shuffle"``.
 
     Returns a dict with keys: terminal, maxdd, sharpe, cagr,
     bust_probability, goal_probability, sims, seed.
     """
     r = _to_returns(df)
     arr = r.drop_nulls().to_numpy()
-    assert len(arr) > 0, "monte carlo requires at least one return"
-    assert sims >= 1, "sims must be >= 1"
+    if len(arr) == 0:
+        raise ValueError("monte carlo requires at least one return")
+    if sims < 1:
+        raise ValueError("sims must be >= 1")
     n = len(arr)
-    sim_returns = _build_sim_returns(arr, sims, seed)
+    sim_returns = _build_sim_returns(arr, sims, seed, method)
     cum_paths = np.cumprod(1 + sim_returns, axis=0) - 1
     terminal = cum_paths[-1, :]
 

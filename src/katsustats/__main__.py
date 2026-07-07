@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import polars as pl
 
 from katsustats import plots, reports
+from katsustats._constants import COL_DATE, COL_RETURNS
 
 
 def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
@@ -18,13 +19,17 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
         sys.exit(f"{p}: file not found.")
 
     suffix = p.suffix.lower()
-    if suffix == ".parquet":
-        df = pl.read_parquet(p)
-    elif suffix == ".csv":
-        df = pl.read_csv(p, try_parse_dates=True)
-    else:
+    if suffix not in (".csv", ".parquet"):
         label = f"'{suffix}'" if suffix else "no extension"
         sys.exit(f"{p}: {label} is not supported. Use .csv or .parquet.")
+
+    try:
+        if suffix == ".parquet":
+            df = pl.read_parquet(p)
+        elif suffix == ".csv":
+            df = pl.read_csv(p, try_parse_dates=True)
+    except Exception as e:
+        sys.exit(f"{p}: Failed to parse file. Error: {e}")
 
     missing = [c for c in [date_col, returns_col] if c not in df.columns]
     if missing:
@@ -35,10 +40,10 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
         )
 
     rename: dict[str, str] = {}
-    if date_col != "date":
-        rename[date_col] = "date"
-    if returns_col != "returns":
-        rename[returns_col] = "returns"
+    if date_col != COL_DATE:
+        rename[date_col] = COL_DATE
+    if returns_col != COL_RETURNS:
+        rename[returns_col] = COL_RETURNS
     if rename:
         df = df.rename(rename)
 
@@ -69,6 +74,7 @@ def _cmd_report(args: argparse.Namespace) -> None:
         df,
         benchmark=benchmark,
         rf=args.rf,
+        periods=args.periods,
         title=args.title,
         output=output,
         monte_carlo=args.monte_carlo,
@@ -76,6 +82,7 @@ def _cmd_report(args: argparse.Namespace) -> None:
         mc_bust=args.mc_bust,
         mc_goal=args.mc_goal,
         mc_seed=args.mc_seed,
+        mc_method=args.mc_method,
     )
     print(f"Report written to {output}")
 
@@ -125,13 +132,13 @@ def main() -> None:
     )
     p_report.add_argument(
         "--date-col",
-        default="date",
+        default=COL_DATE,
         dest="date_col",
         help="Name of the date column (default: date).",
     )
     p_report.add_argument(
         "--returns-col",
-        default="returns",
+        default=COL_RETURNS,
         dest="returns_col",
         help="Name of the returns column (default: returns).",
     )
@@ -142,19 +149,25 @@ def main() -> None:
         help="Annualized risk-free rate (default: 0.0).",
     )
     p_report.add_argument(
+        "--periods",
+        type=int,
+        default=252,
+        help="Trading days per year (default: 252). Use 365 for crypto.",
+    )
+    p_report.add_argument(
         "--benchmark",
         default=None,
         help="Path to a benchmark .csv or .parquet file.",
     )
     p_report.add_argument(
         "--benchmark-date-col",
-        default="date",
+        default=COL_DATE,
         dest="benchmark_date_col",
         help="Benchmark date column name (default: date).",
     )
     p_report.add_argument(
         "--benchmark-returns-col",
-        default="returns",
+        default=COL_RETURNS,
         dest="benchmark_returns_col",
         help="Benchmark returns column name (default: returns).",
     )
@@ -193,6 +206,13 @@ def main() -> None:
         dest="mc_goal",
         help="Return threshold for goal probability, e.g. 0.5 (default: None).",
     )
+    p_report.add_argument(
+        "--mc-method",
+        choices=["bootstrap", "shuffle"],
+        default="bootstrap",
+        dest="mc_method",
+        help="Monte Carlo resampling method (default: bootstrap).",
+    )
     p_report.set_defaults(func=_cmd_report)
 
     p_snap = sub.add_parser(
@@ -216,13 +236,13 @@ def main() -> None:
     )
     p_snap.add_argument(
         "--date-col",
-        default="date",
+        default=COL_DATE,
         dest="date_col",
         help="Name of the date column (default: date).",
     )
     p_snap.add_argument(
         "--returns-col",
-        default="returns",
+        default=COL_RETURNS,
         dest="returns_col",
         help="Name of the returns column (default: returns).",
     )

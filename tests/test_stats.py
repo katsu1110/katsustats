@@ -25,8 +25,7 @@ class TestTotalReturn:
         assert stats.total_return(all_negative_df) < 0
 
     def test_empty_df(self, empty_df):
-        # empty product → 1.0 - 1 = 0.0
-        assert stats.total_return(empty_df) == 0.0
+        assert math.isnan(stats.total_return(empty_df))
 
     def test_known_value(self):
         # (1.1) * (0.9) - 1 = -0.01
@@ -55,8 +54,8 @@ class TestCagr:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.cagr(sample_df), float)
 
-    def test_empty_df_returns_zero(self, empty_df):
-        assert stats.cagr(empty_df) == 0.0
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.cagr(empty_df))
 
     def test_all_positive(self, all_positive_df):
         assert stats.cagr(all_positive_df) > 0
@@ -794,7 +793,7 @@ class TestPandasInputs:
         import pandas as pd
 
         df = pd.DataFrame({"returns": [0.01, -0.005, 0.008]})
-        with pytest.raises(AssertionError, match="missing columns"):
+        with pytest.raises(AssertionError, match="is missing columns"):
             stats.total_return(df)
 
     def test_non_tabular_pandas_object_raises_type_error(self):
@@ -1021,6 +1020,17 @@ class TestPositiveYearsPct:
 # ---------------------------------------------------------------------------
 # Period Performance
 # ---------------------------------------------------------------------------
+
+
+class TestPeriodCutoff:
+    def test_leap_year(self):
+        from datetime import date
+
+        # 2024 is a leap year. Subtracting 1, 3, or 5 years should yield Feb 28 of non-leap years.
+        d = date(2024, 2, 29)
+        assert stats._period_cutoff(d, "1Y") == date(2023, 2, 28)
+        assert stats._period_cutoff(d, "3Y") == date(2021, 2, 28)
+        assert stats._period_cutoff(d, "5Y") == date(2019, 2, 28)
 
 
 class TestPeriodPerformanceRaw:
@@ -1251,7 +1261,7 @@ class TestMonteCarloPaths:
         assert result.columns == ["step", "sim_0"]
 
     def test_sims_must_be_positive(self, sample_df):
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             stats.monte_carlo_paths(sample_df, sims=0)
 
 
@@ -1325,3 +1335,143 @@ class TestMonteCarloSummary:
     def test_pandas_input(self, sample_pandas_df):
         result = stats.monte_carlo_summary(sample_pandas_df, sims=10, seed=0)
         assert isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
+# Bug 1: max_drawdown anchored at initial capital
+# ---------------------------------------------------------------------------
+
+
+class TestMaxDrawdownInitialCapital:
+    def test_large_initial_loss(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04"],
+                "returns": [-0.5, 0.05, 0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert stats.max_drawdown(df) == pytest.approx(-0.5, abs=1e-10)
+
+    def test_drawdown_details_reports_initial_period(self):
+        import datetime
+
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "returns": [-0.5, 0.05, 0.10, 0.20],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        dd = stats.drawdown_details(df)
+        assert dd.height >= 1
+        first = dd.sort("start").row(0, named=True)
+        assert first["start"] == datetime.date(2023, 1, 2)
+
+    def test_consistency_with_sim_max_drawdowns(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04"],
+                "returns": [-0.3, 0.1, 0.05],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        mdd = stats.max_drawdown(df)
+        sim_mdd = stats._sim_max_drawdowns(
+            stats._simulate_paths(
+                df.get_column("returns"), sims=1, seed=0, method="bootstrap"
+            )
+        )
+        assert mdd == pytest.approx(float(sim_mdd[0]), abs=1e-10)
+
+
+# ---------------------------------------------------------------------------
+# Bug 2: Monte Carlo bootstrap method
+# ---------------------------------------------------------------------------
+
+
+class TestMonteCarloMethod:
+    def test_bootstrap_gives_non_degenerate_terminal(self, sample_df):
+        result = stats.monte_carlo_summary(
+            sample_df, sims=100, seed=0, method="bootstrap"
+        )
+        t = result["terminal"]
+        assert t["min"] < t["max"]
+
+    def test_bootstrap_gives_non_degenerate_sharpe(self, sample_df):
+        result = stats.monte_carlo_summary(
+            sample_df, sims=100, seed=0, method="bootstrap"
+        )
+        s = result["sharpe"]
+        assert s["min"] < s["max"]
+
+    def test_bootstrap_gives_non_degenerate_cagr(self, sample_df):
+        result = stats.monte_carlo_summary(
+            sample_df, sims=100, seed=0, method="bootstrap"
+        )
+        c = result["cagr"]
+        assert c["min"] < c["max"]
+
+    def test_shuffle_preserves_old_behavior(self, sample_df):
+        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0, method="shuffle")
+        assert isinstance(result, dict)
+        assert "terminal" in result
+
+    def test_shuffle_terminal_constant_across_paths(self, sample_df):
+        import numpy as np
+
+        r = sample_df.get_column("returns").drop_nulls().to_numpy()
+        sim_returns = stats._build_sim_returns(r, sims=20, seed=0, method="shuffle")
+        terminal_per_path = np.cumprod(1 + sim_returns, axis=0)[-1, :]
+        assert terminal_per_path.max() - terminal_per_path.min() < 1e-10
+
+    def test_invalid_method_raises(self, sample_df):
+        with pytest.raises(ValueError, match="method must be"):
+            stats.monte_carlo_summary(sample_df, sims=10, seed=0, method="invalid")
+
+    def test_seed_reproducibility_bootstrap(self, sample_df):
+        r1 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method="bootstrap")
+        r2 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method="bootstrap")
+        assert r1 == r2
+
+    def test_seed_reproducibility_shuffle(self, sample_df):
+        r1 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method="shuffle")
+        r2 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method="shuffle")
+        assert r1 == r2
+
+    def test_paths_method_bootstrap(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=20, seed=0, method="bootstrap")
+        assert isinstance(result, pl.DataFrame)
+        assert result.height == sample_df.height
+
+    def test_paths_method_shuffle(self, sample_df):
+        result = stats.monte_carlo_paths(sample_df, sims=20, seed=0, method="shuffle")
+        assert isinstance(result, pl.DataFrame)
+
+
+# ---------------------------------------------------------------------------
+# Improvement 8: Empty/degenerate-input hardening
+# ---------------------------------------------------------------------------
+
+
+class TestEmptyInputHardening:
+    def test_best_day_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.best_day(empty_df))
+
+    def test_worst_day_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.worst_day(empty_df))
+
+    def test_value_at_risk_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.value_at_risk(empty_df))
+
+    def test_skewness_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.skewness(empty_df))
+
+    def test_kurtosis_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.kurtosis(empty_df))
+
+    def test_total_return_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.total_return(empty_df))
+
+    def test_information_ratio_single_row_returns_nan(self):
+        df = pl.DataFrame({"date": ["2023-01-02"], "returns": [0.01]}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        assert math.isnan(stats.information_ratio(df, df))

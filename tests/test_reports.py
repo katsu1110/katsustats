@@ -515,3 +515,45 @@ class TestMonteCarloReports:
         j1 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
         j2 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
         assert j1 == j2
+
+
+def test_df_to_html_table_escapes_xss():
+    """Test that HTML characters are escaped to prevent XSS."""
+    df = pl.DataFrame(
+        {"<script>alert('xss')</script>": ["<img src=x onerror=alert(1)>", "safe_val"]}
+    )
+    html_output = reports._df_to_html_table(df)
+
+    assert "<script>" not in html_output
+    assert "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;" in html_output
+    assert "<img src=x onerror=alert(1)>" not in html_output
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html_output
+    assert "safe_val" in html_output
+
+
+class TestHtmlTitleEscaping:
+    def test_script_tag_in_title_is_escaped(self, sample_df):
+        result = reports.html(sample_df, title="<script>alert('xss')</script>")
+        assert "<script>alert" not in result
+        assert "&lt;script&gt;" in result
+
+    def test_ampersand_in_title_is_escaped(self, sample_df):
+        result = reports.html(sample_df, title="Alpha & Beta")
+        assert "Alpha &amp; Beta" in result
+
+
+class TestHighlightCardColors:
+    def test_max_drawdown_negative_renders_neg(self):
+        from datetime import date, timedelta
+
+        dates = [date(2023, 1, 2) + timedelta(days=i) for i in range(20)]
+        returns = [-0.005] * 20
+        df = pl.DataFrame({"date": dates, "returns": returns}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        result = reports.html(df)
+        assert 'class="value neg"' in result
+
+    def test_volatility_renders_neutral(self, sample_df):
+        result = reports.html(sample_df)
+        assert "Volatility" in result

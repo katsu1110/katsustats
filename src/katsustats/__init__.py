@@ -41,6 +41,7 @@ from .reports import markdown as markdown_report
 
 # stats
 from .stats import (
+    PeriodLabel,
     alpha_beta,
     avg_loss,
     avg_win,
@@ -88,7 +89,7 @@ from .stats import (
     worst_year,
 )
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 __all__ = [
     # submodules
@@ -118,6 +119,7 @@ __all__ = [
     "max_drawdown",
     "monte_carlo_paths",
     "monte_carlo_summary",
+    "PeriodLabel",
     "period_performance",
     "period_performance_raw",
     "positive_months_pct",

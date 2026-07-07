@@ -201,6 +201,9 @@ katsustats report trades.csv --benchmark benchmark.csv --title "My Strategy" -o 
 
 # From a Parquet file with a custom risk-free rate
 katsustats report trades.parquet --rf 0.04 -o report.html
+
+# Crypto data (365 days/year) with Monte Carlo
+katsustats report crypto.csv --periods 365 --monte-carlo --mc-method bootstrap -o report.html
 ```
 
 If `-o` is omitted the report is written alongside the input file (for example `trades.html`, `trades.json`, or `trades.md`).
@@ -258,19 +261,22 @@ regime analysis.
 
 ## Monte Carlo simulation
 
-Enable Monte Carlo analysis by passing `monte_carlo=True` to `reports.html()` or `reports.full()`. The simulation shuffles your historical returns thousands of times to show the range of outcomes that luck alone could have produced — keeping the same return distribution while breaking the original time order.
+Enable Monte Carlo analysis by passing `monte_carlo=True` to `reports.html()` or `reports.full()`. The simulation resamples your historical returns thousands of times (bootstrap by default) to show the range of outcomes that luck alone could have produced — keeping the same return distribution while breaking the original time order.
 
 ```python
 katsustats.reports.html(
     returns,
     output="report.html",
     monte_carlo=True,
-    mc_sims=1000,       # number of shuffled paths (default 1000)
+    mc_sims=1000,       # number of simulated paths (default 1000)
     mc_bust=-0.20,      # optional: probability of hitting this drawdown
     mc_goal=0.50,       # optional: probability of reaching this return
     mc_seed=42,         # optional: reproducibility seed
+    mc_method="bootstrap",  # "bootstrap" (default) or "shuffle"
 )
 ```
+
+The default `bootstrap` method samples returns **with replacement**, producing genuine variation in terminal return, Sharpe, and CAGR across paths. Use `mc_method="shuffle"` for the classic permutation approach (sampling without replacement), where terminal return is identical across all paths but max drawdown still varies due to path-dependent ordering.
 
 The HTML report adds two panels to the Monte Carlo section:
 
@@ -278,14 +284,14 @@ The HTML report adds two panels to the Monte Carlo section:
 |-----------------|--------------------------|
 | ![Monte Carlo paths](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/monte_carlo_simulations.png) | ![Max drawdown distribution](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/simulated_max_drawdown.png) |
 
-- **Simulated paths** — fan of shuffled cumulative return paths with the original path highlighted. Shows how differently the same returns could have played out under alternative orderings.
+- **Simulated paths** — fan of simulated cumulative return paths with the original path highlighted. Shows how differently the same returns could have played out under alternative orderings.
 - **Max drawdown distribution** — histogram of the worst drawdown across each simulated path. Because drawdown is path-dependent (a run of losses early hurts far more than the same losses late), this distribution has genuine spread and tells you how lucky or unlucky your drawdown sequence was.
 
 You can also call the underlying stats directly:
 
 ```python
 # Raw simulation paths as a wide Polars DataFrame
-paths = katsustats.stats.monte_carlo_paths(returns, sims=1000, seed=42)
+paths = katsustats.stats.monte_carlo_paths(returns, sims=1000, seed=42, method="bootstrap")
 
 # Probabilistic summary: terminal return, max drawdown, Sharpe, CAGR distributions
 summary = katsustats.stats.monte_carlo_summary(
@@ -294,6 +300,7 @@ summary = katsustats.stats.monte_carlo_summary(
     bust=-0.20,   # drawdown threshold for bust probability
     goal=0.50,    # return threshold for goal probability
     seed=42,
+    method="bootstrap",
 )
 ```
 
