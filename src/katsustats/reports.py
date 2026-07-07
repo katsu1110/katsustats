@@ -443,6 +443,7 @@ def _report_payload(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> dict[str, object]:
     """Build an AI-friendly structured report payload."""
     benchmark_summary: dict[str, float] | None = None
@@ -521,6 +522,7 @@ def _report_payload(
                 rf=rf,
                 periods=periods,
                 seed=mc_seed,
+                method=mc_method,
             )
             if monte_carlo
             else None
@@ -779,6 +781,7 @@ def full(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> dict:
     """
     Generate a full backtest report with metrics and plots.
@@ -860,7 +863,9 @@ def full(
     mc_summary = None
     if monte_carlo:
         effective_seed = _resolve_mc_seed(mc_seed)
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
+        mc_paths = stats.monte_carlo_paths(
+            returns, sims=mc_sims, seed=effective_seed, method=mc_method
+        )
         _handle_fig(
             "monte_carlo",
             plots.plot_monte_carlo(
@@ -869,6 +874,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         _handle_fig(
@@ -879,6 +885,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         mc_summary = stats.monte_carlo_summary(
@@ -889,6 +896,7 @@ def full(
             rf=rf,
             periods=periods,
             seed=effective_seed,
+            method=mc_method,
         )
 
     return {
@@ -913,6 +921,7 @@ def html(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate a self-contained HTML backtest report.
@@ -949,6 +958,7 @@ def html(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     finally:
         plt.switch_backend(orig_backend)
@@ -966,6 +976,7 @@ def json(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate an AI-friendly JSON backtest report.
@@ -1025,6 +1036,7 @@ def json(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     )
 
@@ -1047,6 +1059,7 @@ def markdown(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """
     Generate a Markdown backtest summary for humans and AI agents.
@@ -1083,6 +1096,7 @@ def markdown(
             mc_bust=mc_bust,
             mc_goal=mc_goal,
             mc_seed=mc_seed,
+            mc_method=mc_method,
         )
     )
 
@@ -1106,6 +1120,7 @@ def _build_html(
     mc_bust: float | None = None,
     mc_goal: float | None = None,
     mc_seed: int | None = None,
+    mc_method: str = "bootstrap",
 ) -> str:
     """Internal: build the HTML report string."""
     returns, benchmark = _validate_and_sort(returns, benchmark)
@@ -1134,10 +1149,12 @@ def _build_html(
     cards: list[str] = []
     for label, val, is_pct in highlight_defs:
         fmt_val = f"{val:.2%}" if is_pct else f"{val:.2f}"
-        css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
-        # Max drawdown is always negative, invert color logic
         if label == "Max Drawdown":
-            css_cls = "neg" if val < -0.1 else "pos"
+            css_cls = "neg" if val < 0 else ""
+        elif label == "Volatility":
+            css_cls = ""
+        else:
+            css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
         cards.append(
             f'<div class="highlight-card">'
             f'<div class="label">{label}</div>'
@@ -1239,7 +1256,9 @@ def _build_html(
     # ── Monte Carlo Analysis (full-width) ───────────────────────────
     if monte_carlo:
         effective_seed = _resolve_mc_seed(mc_seed)
-        mc_paths = stats.monte_carlo_paths(returns, sims=mc_sims, seed=effective_seed)
+        mc_paths = stats.monte_carlo_paths(
+            returns, sims=mc_sims, seed=effective_seed, method=mc_method
+        )
         mc_b64 = _fig_to_base64(
             plots.plot_monte_carlo(
                 returns,
@@ -1247,6 +1266,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_dist_b64 = _fig_to_base64(
@@ -1256,6 +1276,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_sum = stats.monte_carlo_summary(
@@ -1266,6 +1287,7 @@ def _build_html(
             rf=rf,
             periods=periods,
             seed=effective_seed,
+            method=mc_method,
         )
         t = mc_sum["terminal"]
         md = mc_sum["maxdd"]
@@ -1327,8 +1349,9 @@ def _build_html(
         regime_section = ""
 
     # ── Render ──────────────────────────────────────────────────────
+    safe_title = _html.escape(title)
     rendered = _HTML_TEMPLATE.format(
-        title=title,
+        title=safe_title,
         date_range=date_range,
         n_days=n_days,
         highlight_cards=highlight_cards,
