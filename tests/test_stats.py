@@ -54,8 +54,8 @@ class TestCagr:
     def test_returns_float(self, sample_df):
         assert isinstance(stats.cagr(sample_df), float)
 
-    def test_empty_df_returns_zero(self, empty_df):
-        assert stats.cagr(empty_df) == 0.0
+    def test_empty_df_returns_nan(self, empty_df):
+        assert math.isnan(stats.cagr(empty_df))
 
     def test_all_positive(self, all_positive_df):
         assert stats.cagr(all_positive_df) > 0

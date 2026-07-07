@@ -56,7 +56,7 @@ def cagr(df: DataFrameLike, periods: int = 252) -> float:
     r = _to_returns(df)
     n = r.len()
     if n == 0:
-        return 0.0
+        return float("nan")
     total = float((r + 1).product())
     years = n / periods
     if years <= 0 or total <= 0:

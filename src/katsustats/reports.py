@@ -874,6 +874,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         _handle_fig(
@@ -884,6 +885,7 @@ def full(
                 seed=effective_seed,
                 figsize=figsize_main,
                 _paths_df=mc_paths,
+                method=mc_method,
             ),
         )
         mc_summary = stats.monte_carlo_summary(
@@ -1264,6 +1266,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_dist_b64 = _fig_to_base64(
@@ -1273,6 +1276,7 @@ def _build_html(
                 seed=effective_seed,
                 figsize=(8, 4),
                 _paths_df=mc_paths,
+                method=mc_method,
             )
         )
         mc_sum = stats.monte_carlo_summary(
