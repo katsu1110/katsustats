@@ -999,7 +999,14 @@ def _parse_window(window: str | int) -> int:
     raise TypeError(f"window must be str or int, got {type(window).__name__}")
 
 
-def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
+def _draw_metric_card(
+    ax,
+    value_str: str,
+    label: str,
+    bg_color: str,
+    text_color: str = "white",
+    shadow: bool = False,
+) -> None:
     """Draw a metric tile: colored background, bold value, small label."""
     ax.set_facecolor("none")
     for spine in ax.spines.values():
@@ -1007,15 +1014,29 @@ def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
     ax.set_xticks([])
     ax.set_yticks([])
 
+    if shadow:
+        shadow_rect = FancyBboxPatch(
+            (0.02, -0.05),
+            1,
+            1,
+            boxstyle="round,pad=0,rounding_size=0.20",
+            ec="none",
+            fc="black",
+            alpha=0.3,
+            transform=ax.transAxes,
+            zorder=0,
+        )
+        ax.add_patch(shadow_rect)
+
     rect = FancyBboxPatch(
         (0, 0),
         1,
         1,
-        boxstyle="round,pad=0,rounding_size=0.15",
+        boxstyle="round,pad=0,rounding_size=0.20",
         ec="none",
         fc=bg_color,
         transform=ax.transAxes,
-        zorder=0,
+        zorder=1,
     )
     ax.add_patch(rect)
 
@@ -1028,7 +1049,8 @@ def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
         va="center",
         fontsize=22,
         fontweight="bold",
-        color="white",
+        color=text_color,
+        zorder=2,
     )
     ax.text(
         0.5,
@@ -1039,8 +1061,9 @@ def _draw_metric_card(ax, value_str: str, label: str, bg_color: str) -> None:
         va="center",
         fontsize=9,
         fontweight="bold",
-        color="white",
+        color=text_color,
         alpha=0.90,
+        zorder=2,
     )
 
 
@@ -1054,6 +1077,7 @@ def plot_snapshot(
     window: str | int = "1W",
     title: str = "Strategy",
     figsize: tuple = (10, 8),
+    theme: str = "light",
 ) -> Figure:
     """Compact performance card: equity curve, underwater drawdown, and 4 metric tiles for the given window."""
     df = ensure_polars(df)
@@ -1074,29 +1098,73 @@ def plot_snapshot(
     mdd_str = f"{mdd_val:.2%}"
     wr_str = f"{wr_val:.2%}"
 
-    fig = plt.figure(figsize=figsize, facecolor="white")
-    gs = fig.add_gridspec(3, 4, height_ratios=[1, 2.5, 1.0], hspace=0.25, wspace=0.10)
+    is_dark = theme.lower() == "dark"
+    bg_fig = "#0B0F19" if is_dark else "white"
+    bg_ax = "#0B0F19" if is_dark else "white"
+
+    fig = plt.figure(figsize=figsize, facecolor=bg_fig)
+    gs = fig.add_gridspec(3, 4, height_ratios=[1, 2.0, 1.1], hspace=0.25, wspace=0.10)
     ax_cards = [fig.add_subplot(gs[0, i]) for i in range(4)]
     ax_curve = fig.add_subplot(gs[1, :])
     ax_dd = fig.add_subplot(gs[2, :], sharex=ax_curve)
 
-    # Modern vibrant colors for cards
-    c_pos_card = "#10B981"  # Emerald
-    c_neg_card = "#EF4444"  # Red
-    c_neu_card = "#374151"  # Sleek dark gray
+    # Theme colors
+    c_pos = "#00FFA3" if is_dark else "#10B981"  # Emerald/Neon Green
+    c_neg = "#FF3366" if is_dark else "#EF4444"  # Red/Neon Red
+    c_line = "white" if is_dark else "#374151"
+    c_grid = "#1F2937" if is_dark else "#F3F4F6"
+    c_border = "#374151" if is_dark else "#E5E7EB"
+    c_neutral_line = "#4B5563" if is_dark else "#9CA3AF"
+    c_label = "#9CA3AF" if is_dark else "#4B5563"
+    c_title = "white" if is_dark else "#111827"
+    text_sec = "#9CA3AF" if is_dark else _COLORS["text_secondary"]
+
+    # Card colors
+    if is_dark:
+        c_pos_card, text_pos = "#064E3B", c_pos  # Dark green bg, neon green text
+        c_neg_card, text_neg = "#7F1D1D", c_neg  # Dark red bg, neon red text
+        c_neu_card, text_neu = "#1F2937", "white"
+    else:
+        c_pos_card, text_pos = "#10B981", "white"
+        c_neg_card, text_neg = "#EF4444", "white"
+        c_neu_card, text_neu = "#6B7280", "white"
+
+    def _card_colors_sharpe(v: float | None) -> tuple[str, str]:
+        if v is None or (isinstance(v, float) and v != v):
+            return c_neu_card, text_neu
+        if v > 1.0:
+            return c_pos_card, text_pos
+        if v < 0.5:
+            return c_neg_card, text_neg
+        return c_neu_card, text_neu
+
+    def _card_colors_mdd(v: float) -> tuple[str, str]:
+        if v > -0.10:
+            return c_pos_card, text_pos
+        if v < -0.20:
+            return c_neg_card, text_neg
+        return c_neu_card, text_neu
+
+    def _card_colors_wr(v: float) -> tuple[str, str]:
+        if v > 0.55:
+            return c_pos_card, text_pos
+        if v < 0.45:
+            return c_neg_card, text_neg
+        return c_neu_card, text_neu
+
+    def _card_colors_ret(v: float) -> tuple[str, str]:
+        if v >= 0:
+            return c_pos_card, text_pos
+        return c_neg_card, text_neg
 
     card_specs = [
-        (
-            ret_str,
-            "Return",
-            c_pos_card if ret_val >= 0 else c_neg_card,
-        ),
-        (sharpe_str, "Sharpe", c_neu_card),
-        (mdd_str, "Max DD", c_neu_card),
-        (wr_str, "Win Rate", c_neu_card),
+        (ret_str, "Return", *_card_colors_ret(ret_val)),
+        (sharpe_str, "Sharpe", *_card_colors_sharpe(sharpe_val)),
+        (mdd_str, "Max DD", *_card_colors_mdd(mdd_val)),
+        (wr_str, "Win Rate", *_card_colors_wr(wr_val)),
     ]
-    for ax, (val_s, lbl, bg) in zip(ax_cards, card_specs):
-        _draw_metric_card(ax, val_s, lbl, bg)
+    for ax, (val_s, lbl, bg, txt) in zip(ax_cards, card_specs):
+        _draw_metric_card(ax, val_s, lbl, bg, text_color=txt, shadow=is_dark)
 
     r = stats._to_returns(df_window)
     dates_raw = df_window.get_column("date").to_numpy()
@@ -1113,33 +1181,17 @@ def plot_snapshot(
     running_max_full = np.concatenate([[1.0], running_max])
     dd_full = (cumval_full / running_max_full) - 1.0
 
-    # Modern chart colors
-    c_pos = "#10B981"  # Emerald
-    c_neg = "#EF4444"  # Red
-    c_line = "#374151"  # Sleek dark gray (matches neutral cards)
+    for ax in (ax_curve, ax_dd):
+        ax.set_facecolor(bg_ax)
+        ax.grid(color=c_grid, linewidth=1.0, axis="y", zorder=0)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.spines["bottom"].set_visible(True)
+        ax.spines["bottom"].set_color(c_border)
+        ax.spines["bottom"].set_linewidth(1.5)
+        ax.tick_params(colors=text_sec, labelsize=9)
 
-    # Clean, modern panel for curve
-    _apply_style(ax_curve, fig)
-    ax_curve.set_facecolor("white")
-    ax_curve.grid(color="#F3F4F6", linewidth=1.0, axis="y", zorder=0)
-    for spine in ax_curve.spines.values():
-        spine.set_visible(False)
-    ax_curve.spines["bottom"].set_visible(True)
-    ax_curve.spines["bottom"].set_color("#E5E7EB")
-    ax_curve.spines["bottom"].set_linewidth(1.5)
-
-    # Hide x-axis labels on the top curve panel
     ax_curve.tick_params(labelbottom=False)
-
-    # Clean panel for drawdown
-    _apply_style(ax_dd, fig)
-    ax_dd.set_facecolor("white")
-    ax_dd.grid(color="#F3F4F6", linewidth=1.0, axis="y", zorder=0)
-    for spine in ax_dd.spines.values():
-        spine.set_visible(False)
-    ax_dd.spines["bottom"].set_visible(True)
-    ax_dd.spines["bottom"].set_color("#E5E7EB")
-    ax_dd.spines["bottom"].set_linewidth(1.5)
 
     if n_rows <= 126:
         r_vals = r.to_numpy()
@@ -1148,7 +1200,7 @@ def plot_snapshot(
             dates_raw,
             r_vals,
             color=bar_colors,
-            alpha=0.6,
+            alpha=0.8 if is_dark else 0.6,
             width=0.6,
             edgecolor="none",
             zorder=1,
@@ -1176,6 +1228,12 @@ def plot_snapshot(
         interpolate=True,
         zorder=1,
     )
+
+    # Glow effect for dark mode
+    if is_dark:
+        for lw, a in [(6, 0.1), (4, 0.2), (2, 0.5)]:
+            ax_curve.plot(dates, cumret, lw=lw, color=c_line, alpha=a, zorder=2)
+
     marker = "o" if n_rows <= 40 else ""
     ax_curve.plot(
         dates,
@@ -1184,29 +1242,35 @@ def plot_snapshot(
         color=c_line,
         marker=marker,
         markersize=3,
-        markerfacecolor="white",
+        markerfacecolor=bg_ax if is_dark else "white",
         markeredgewidth=1.5,
         zorder=3,
         label="Cumulative Return",
     )
-    ax_curve.axhline(0, color="#9CA3AF", lw=1.2, ls="--", zorder=2)
+    ax_curve.axhline(0, color=c_neutral_line, lw=1.2, ls="--", zorder=2)
     ax_curve.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax_curve.set_ylabel("Cum. Return", fontsize=9, color=c_label)
 
     # Drawdown fill
-    ax_dd.fill_between(dates, dd_full, 0, color=c_neg, alpha=0.3, zorder=1)
-    ax_dd.plot(dates, dd_full, color=c_neg, lw=1.0, zorder=2)
-    ax_dd.axhline(0, color="#9CA3AF", lw=1.2, ls="--", zorder=2)
+    ax_dd.fill_between(
+        dates, dd_full, 0, color=c_neg, alpha=0.3 if is_dark else 0.3, zorder=1
+    )
+    ax_dd.plot(dates, dd_full, color=c_neg, lw=1.5 if is_dark else 1.0, zorder=2)
+    ax_dd.axhline(0, color=c_neutral_line, lw=1.2, ls="--", zorder=2)
     ax_dd.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    ax_dd.set_ylabel("Drawdown", fontsize=9, color="#4B5563")
+    ax_dd.set_ylabel("Drawdown", fontsize=9, color=c_label)
 
     # Add a clean legend to the top chart
-    ax_curve.legend(
+    leg = ax_curve.legend(
         loc="upper left",
         frameon=True,
-        facecolor="white",
-        edgecolor="#E5E7EB",
+        facecolor=bg_ax,
+        edgecolor=c_border,
         fontsize=9,
+        labelcolor=text_sec if is_dark else _COLORS["text"],
     )
+    if is_dark:
+        leg.get_frame().set_alpha(0.8)
 
     fig.autofmt_xdate(rotation=45)
 
@@ -1223,7 +1287,8 @@ def plot_snapshot(
         f"{title}  ·  {window_label}  ({date_start} to {date_end})",
         fontsize=12,
         fontweight="bold",
-        color="#111827",
+        color=c_title,
         y=1.02,
     )
+    fig.tight_layout()
     return fig
