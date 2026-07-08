@@ -1130,7 +1130,7 @@ def plot_snapshot(
         c_neu_card, text_neu = "#6B7280", "white"
 
     def _card_colors_sharpe(v: float | None) -> tuple[str, str]:
-        if v is None or (isinstance(v, float) and v != v):
+        if v is None or (isinstance(v, float) and np.isnan(v)):
             return c_neu_card, text_neu
         if v > 1.0:
             return c_pos_card, text_pos
