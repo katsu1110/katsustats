@@ -517,9 +517,9 @@ class TestParseWindow:
     def test_string_specs(self, spec, expected):
         assert _parse_window(spec) == expected
 
-    def test_1d_string_raises_value_error(self):
+    def test_bad_string_raises_value_error(self):
         with pytest.raises(ValueError, match="Unrecognised window"):
-            _parse_window("1D")
+            _parse_window("2Y")
 
     def test_int_passthrough(self):
         assert _parse_window(7) == 7
@@ -527,9 +527,10 @@ class TestParseWindow:
     def test_integer_string(self):
         assert _parse_window("10") == 10
 
-    def test_bad_string_raises_value_error(self):
+    @pytest.mark.parametrize("spec", ["1D", "2Y", "6M"])
+    def test_unrecognised_strings_raise_value_error(self, spec):
         with pytest.raises(ValueError, match="Unrecognised window"):
-            _parse_window("2Y")
+            _parse_window(spec)
 
     def test_zero_raises_value_error(self):
         with pytest.raises(ValueError, match="window must be >= 1"):
@@ -591,12 +592,14 @@ class TestPlotSnapshot:
 
     def test_positive_return_card_is_green(self, all_positive_df):
         fig = plots.plot_snapshot(all_positive_df)
-        face = mcolors.to_hex(fig.axes[0].patches[0].get_facecolor()[:3])
+        # Select the topmost patch (the card bg, not any shadow)
+        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
         assert face == "#10b981"
 
     def test_negative_return_card_is_red(self, all_negative_df):
         fig = plots.plot_snapshot(all_negative_df)
-        face = mcolors.to_hex(fig.axes[0].patches[0].get_facecolor()[:3])
+        # Select the topmost patch (the card bg, not any shadow)
+        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
         assert face == "#ef4444"
 
     def test_single_row_sharpe_shows_dash(self, single_row_df):
@@ -638,6 +641,40 @@ class TestPlotSnapshot:
         fig_neg = plots.plot_snapshot(all_negative_df, window="1W")
         neg_colors = [p.get_facecolor() for p in fig_neg.axes[4].patches]
         assert all(mcolors.to_hex(c[:3]) == c_neg for c in neg_colors)
+
+    # --- Dark theme tests ---
+
+    def test_dark_theme_returns_figure(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        assert isinstance(fig, Figure)
+
+    def test_dark_theme_background_color(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        assert mcolors.to_hex(fig.get_facecolor()[:3]) == "#0b0f19"
+
+    def test_dark_theme_chart_axes_facecolor_is_dark(self, sample_df):
+        # In dark mode both chart axes should NOT have a transparent background.
+        # We verify they are visually distinct from the card axes (which are "none"/transparent).
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        card_axes_fc = fig.axes[
+            0
+        ].get_facecolor()  # card axes are set to "none" → (0,0,0,0)
+        for ax in (fig.axes[4], fig.axes[5]):
+            assert ax.get_facecolor() != card_axes_fc, (
+                f"Chart ax facecolor {ax.get_facecolor()!r} should differ from transparent card ax"
+            )
+
+    def test_dark_theme_card_has_shadow_patch(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        # Dark mode adds a shadow patch before the card bg, so each card ax has >= 2 patches
+        for ax in fig.axes[:4]:
+            assert len(ax.patches) >= 2
+
+    def test_dark_theme_glow_lines_present(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        ax_curve = fig.axes[4]
+        # Dark mode plots 3 extra glow lines + 1 main line + axhline = at least 5
+        assert len(ax_curve.get_lines()) >= 5
 
 
 # Bug 1: plot_drawdown anchored at initial capital

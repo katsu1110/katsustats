@@ -580,3 +580,21 @@ class TestSnapshotCommand:
         )
         with pytest.raises(SystemExit, match="file not found"):
             main()
+
+    def test_dark_theme_creates_png(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap_dark.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "snapshot",
+                str(csv_file),
+                "--theme",
+                "dark",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        assert out.exists()
+        assert out.read_bytes()[:4] == b"\x89PNG"

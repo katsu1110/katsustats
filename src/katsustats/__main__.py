@@ -93,7 +93,7 @@ def _cmd_snapshot(args: argparse.Namespace) -> None:
         fig = plots.plot_snapshot(
             df, window=args.window, title=args.title, theme=args.theme
         )
-    except Exception as exc:
+    except ValueError as exc:
         sys.exit(str(exc))
 
     output = args.output or str(

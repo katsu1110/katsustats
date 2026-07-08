@@ -1099,10 +1099,9 @@ def plot_snapshot(
     wr_str = f"{wr_val:.2%}"
 
     is_dark = theme.lower() == "dark"
-    bg_fig = "#0B0F19" if is_dark else "white"
-    bg_ax = "#0B0F19" if is_dark else "white"
+    bg = "#0B0F19" if is_dark else "white"
 
-    fig = plt.figure(figsize=figsize, facecolor=bg_fig)
+    fig = plt.figure(figsize=figsize, facecolor=bg)
     gs = fig.add_gridspec(3, 4, height_ratios=[1, 2.0, 1.1], hspace=0.25, wspace=0.10)
     ax_cards = [fig.add_subplot(gs[0, i]) for i in range(4)]
     ax_curve = fig.add_subplot(gs[1, :])
@@ -1182,7 +1181,7 @@ def plot_snapshot(
     dd_full = (cumval_full / running_max_full) - 1.0
 
     for ax in (ax_curve, ax_dd):
-        ax.set_facecolor(bg_ax)
+        ax.set_facecolor(bg)
         ax.grid(color=c_grid, linewidth=1.0, axis="y", zorder=0)
         for spine in ax.spines.values():
             spine.set_visible(False)
@@ -1229,7 +1228,7 @@ def plot_snapshot(
         zorder=1,
     )
 
-    # Glow effect for dark mode
+    # Glow effect for dark mode — layers: (linewidth, alpha), widest first
     if is_dark:
         for lw, a in [(6, 0.1), (4, 0.2), (2, 0.5)]:
             ax_curve.plot(dates, cumret, lw=lw, color=c_line, alpha=a, zorder=2)
@@ -1242,7 +1241,7 @@ def plot_snapshot(
         color=c_line,
         marker=marker,
         markersize=3,
-        markerfacecolor=bg_ax if is_dark else "white",
+        markerfacecolor=bg if is_dark else "white",
         markeredgewidth=1.5,
         zorder=3,
         label="Cumulative Return",
@@ -1253,7 +1252,7 @@ def plot_snapshot(
 
     # Drawdown fill
     ax_dd.fill_between(
-        dates, dd_full, 0, color=c_neg, alpha=0.3 if is_dark else 0.3, zorder=1
+        dates, dd_full, 0, color=c_neg, alpha=0.4 if is_dark else 0.3, zorder=1
     )
     ax_dd.plot(dates, dd_full, color=c_neg, lw=1.5 if is_dark else 1.0, zorder=2)
     ax_dd.axhline(0, color=c_neutral_line, lw=1.2, ls="--", zorder=2)
@@ -1264,7 +1263,7 @@ def plot_snapshot(
     leg = ax_curve.legend(
         loc="upper left",
         frameon=True,
-        facecolor=bg_ax,
+        facecolor=bg,
         edgecolor=c_border,
         fontsize=9,
         labelcolor=text_sec if is_dark else _COLORS["text"],
