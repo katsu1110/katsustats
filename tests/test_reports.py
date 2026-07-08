@@ -57,9 +57,21 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         figs = result["figures"]
         assert isinstance(figs, dict)
-        assert len(figs) == 8
+        assert len(figs) == 9
         for fig in figs.values():
             assert isinstance(fig, matplotlib.figure.Figure)
+
+    def test_figures_include_rolling_sortino(self, sample_df):
+        result = reports.full(sample_df, show=False)
+        assert "rolling_sortino" in result["figures"]
+
+    def test_figures_with_benchmark_includes_beta_and_correlation(
+        self, sample_df, benchmark_df
+    ):
+        result = reports.full(sample_df, benchmark=benchmark_df, show=False)
+        figs = result["figures"]
+        assert "rolling_beta" in figs
+        assert "rolling_correlation" in figs
 
     def test_with_benchmark(self, sample_df, benchmark_df):
         result = reports.full(sample_df, benchmark=benchmark_df, show=False)
@@ -235,6 +247,17 @@ class TestHtml:
             )
         )
         assert result.index("Top Drawdowns") < result.index("Regime Analysis")
+
+    def test_html_contains_rolling_sortino_section(self, sample_df):
+        result = reports.html(sample_df)
+        assert "Rolling Sortino" in result
+
+    def test_html_with_benchmark_contains_rolling_beta_and_correlation(
+        self, sample_df, benchmark_df
+    ):
+        result = reports.html(sample_df, benchmark=benchmark_df)
+        assert "Rolling Beta" in result
+        assert "Rolling Correlation" in result
 
     def test_output_writes_file(self, sample_df, tmp_path):
         out_file = tmp_path / "report.html"

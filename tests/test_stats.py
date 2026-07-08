@@ -460,6 +460,168 @@ class TestRollingVolatility:
         assert all(v >= 0 for v in valid)
 
 
+class TestRollingSortino:
+    def test_returns_dataframe(self, sample_df):
+        result = stats.rolling_sortino(sample_df, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_schema(self, sample_df):
+        result = stats.rolling_sortino(sample_df, window=5)
+        assert set(result.columns) == {"date", "rolling_sortino"}
+
+    def test_length_matches_input(self, sample_df):
+        result = stats.rolling_sortino(sample_df, window=5)
+        assert result.height == sample_df.height
+
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_sortino(sample_df, window=window)
+        vals = result.get_column("rolling_sortino").to_list()
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_values_finite_after_window(self, sample_df):
+        window = 5
+        result = stats.rolling_sortino(sample_df, window=window)
+        vals = result.get_column("rolling_sortino").to_list()
+        valid = [v for v in vals[window:] if v is not None]
+        assert all(math.isfinite(v) or math.isinf(v) for v in valid)
+
+    def test_rf_lowers_values(self, sample_df):
+        w = 5
+        s0 = stats.rolling_sortino(sample_df, window=w, rf=0.0)
+        s1 = stats.rolling_sortino(sample_df, window=w, rf=0.05)
+        v0 = s0.get_column("rolling_sortino").to_list()
+        v1 = s1.get_column("rolling_sortino").to_list()
+        assert any(v0[i] != v1[i] for i in range(w, len(v0)) if v0[i] is not None)
+
+
+class TestRollingBeta:
+    def test_returns_dataframe(self, sample_df, benchmark_df):
+        result = stats.rolling_beta(sample_df, benchmark_df, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_schema(self, sample_df, benchmark_df):
+        result = stats.rolling_beta(sample_df, benchmark_df, window=5)
+        assert set(result.columns) == {"date", "rolling_beta"}
+
+    def test_length_matches_aligned_input(self, sample_df, benchmark_df):
+        result = stats.rolling_beta(sample_df, benchmark_df, window=5)
+        joined = sample_df.join(benchmark_df, on="date", how="inner")
+        assert result.height == joined.height
+
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_beta(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_beta").to_list()
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_self_beta_is_one(self, sample_df):
+        window = 5
+        result = stats.rolling_beta(sample_df, sample_df, window=window)
+        vals = result.get_column("rolling_beta").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(abs(v - 1.0) < 1e-10 for v in valid)
+
+    def test_unequal_lengths(self, sample_df, benchmark_df):
+        shorter = benchmark_df.head(10)
+        result = stats.rolling_beta(sample_df, shorter, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+
+class TestRollingCorrelation:
+    def test_returns_dataframe(self, sample_df, benchmark_df):
+        result = stats.rolling_correlation(sample_df, benchmark_df, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_schema(self, sample_df, benchmark_df):
+        result = stats.rolling_correlation(sample_df, benchmark_df, window=5)
+        assert set(result.columns) == {"date", "rolling_correlation"}
+
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_correlation").to_list()
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_self_correlation_is_one(self, sample_df):
+        window = 5
+        result = stats.rolling_correlation(sample_df, sample_df, window=window)
+        vals = result.get_column("rolling_correlation").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(abs(v - 1.0) < 1e-10 for v in valid)
+
+    def test_in_range(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_correlation").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(-1.0 <= v <= 1.0 for v in valid)
+
+
+class TestRollingDrawdown:
+    def test_returns_dataframe(self, sample_df):
+        result = stats.rolling_drawdown(sample_df, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_schema(self, sample_df):
+        result = stats.rolling_drawdown(sample_df, window=5)
+        assert set(result.columns) == {"date", "rolling_drawdown"}
+
+    def test_length_matches_input(self, sample_df):
+        result = stats.rolling_drawdown(sample_df, window=5)
+        assert result.height == sample_df.height
+
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_drawdown(sample_df, window=window)
+        vals = result.get_column("rolling_drawdown").to_list()
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_values_negative_or_zero_after_window(self, sample_df):
+        window = 5
+        result = stats.rolling_drawdown(sample_df, window=window)
+        vals = result.get_column("rolling_drawdown").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(v <= 0 for v in valid)
+
+    def test_all_positive_returns_zero(self, all_positive_df):
+        window = 5
+        result = stats.rolling_drawdown(all_positive_df, window=window)
+        vals = result.get_column("rolling_drawdown").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(abs(v) < 1e-10 for v in valid)
+
+
+class TestRollingVolatilityRatio:
+    def test_returns_dataframe(self, sample_df, benchmark_df):
+        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=5)
+        assert isinstance(result, pl.DataFrame)
+
+    def test_schema(self, sample_df, benchmark_df):
+        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=5)
+        assert set(result.columns) == {"date", "rolling_vol_ratio"}
+
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_vol_ratio").to_list()
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_values_finite_after_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_vol_ratio").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(math.isfinite(v) for v in valid)
+
+    def test_self_ratio_is_one(self, sample_df):
+        window = 5
+        result = stats.rolling_volatility_ratio(sample_df, sample_df, window=window)
+        vals = result.get_column("rolling_vol_ratio").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert all(abs(v - 1.0) < 1e-10 for v in valid)
+
+
 # ---------------------------------------------------------------------------
 # Benchmark comparison
 # ---------------------------------------------------------------------------
