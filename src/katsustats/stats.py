@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import enum
+import math
 
 import numpy as np
 import polars as pl
@@ -36,6 +37,11 @@ def _cumulative(returns: pl.Series) -> pl.Series:
 def _cumulative_value(returns: pl.Series) -> pl.Series:
     """Cumulative value curve starting from 1.0."""
     return (returns + 1).cum_prod()
+
+
+def _norm_cdf(x: float) -> float:
+    """Standard normal CDF via the complementary error function."""
+    return 0.5 * math.erfc(-x / math.sqrt(2.0))
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +261,141 @@ def kurtosis(df: DataFrameLike) -> float:
     """Excess kurtosis of daily returns."""
     r = _to_returns(df)
     return _float_or_nan(r.kurtosis())
+
+
+# ---------------------------------------------------------------------------
+# Risk-Adjusted Ratios
+# ---------------------------------------------------------------------------
+
+
+def omega_ratio(df: DataFrameLike, threshold: float = 0.0) -> float:
+    """Omega ratio: sum(positive excess) / sum(|negative excess|).
+    Values > 1 indicate more upside than downside relative to *threshold*.
+    """
+    r = _to_returns(df)
+    excess = r - threshold
+    numerator = excess.clip(lower_bound=0.0).sum()
+    denominator = (-excess).clip(lower_bound=0.0).sum()
+    if denominator is None or denominator == 0:
+        if numerator is None or numerator == 0:
+            return float("nan")
+        return float("inf")
+    return float(numerator / denominator)
+
+
+def ulcer_index(df: DataFrameLike) -> float:
+    """Ulcer index: sqrt(mean of squared running drawdowns).
+
+    Measures downside risk as the depth and duration of drawdowns.
+    Lower values are better.
+    """
+    r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
+    cumval = _cumulative_value(r)
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
+    dd = (cumval - running_max) / running_max
+    return float((dd**2).mean() ** 0.5)
+
+
+def martin_ratio(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
+    """Martin (Ulcer Performance Index): annualized excess return / ulcer index."""
+    r = _to_returns(df)
+    if r.len() == 0:
+        return float("nan")
+    rf_per_period = rf / periods
+    annualized_excess = (float(r.mean()) - rf_per_period) * periods
+    ui = ulcer_index(df)
+    if ui == 0:
+        if annualized_excess == 0:
+            return 0.0
+        return float("inf") if annualized_excess > 0 else float("-inf")
+    return annualized_excess / ui
+
+
+def gain_to_pain(df: DataFrameLike) -> float:
+    """Gain-to-pain ratio: sum(all returns) / sum(|negative returns|)."""
+    r = _to_returns(df)
+    total_ret = r.sum()
+    if total_ret is None:
+        return float("nan")
+    losses = r.filter(r < 0).abs().sum()
+    if losses is None or losses == 0:
+        if total_ret == 0:
+            return float("nan")
+        return float("inf")
+    return float(total_ret / losses)
+
+
+def kelly_criterion(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
+    """Half-Kelly criterion: 0.5 × mean(excess return) / variance(excess return).
+
+    Returns the optimal fraction of capital to allocate per trade / period
+    under the Kelly framework (half-Kelly used as a conservative estimate).
+    """
+    r = _to_returns(df)
+    if r.len() < 2:
+        return float("nan")
+    rf_per_period = rf / periods
+    excess = r - rf_per_period
+    variance = float(excess.var())
+    if variance == 0:
+        mean_excess = float(excess.mean())
+        if mean_excess == 0:
+            return 0.0
+        return float("inf") if mean_excess > 0 else float("-inf")
+    return float(0.5 * excess.mean() / variance)
+
+
+def payoff_ratio(df: DataFrameLike) -> float:
+    """Payoff ratio: average win / |average loss|."""
+    r = _to_returns(df)
+    wins = r.filter(r > 0)
+    losses = r.filter(r < 0)
+    if losses.len() == 0:
+        if wins.len() == 0:
+            return float("nan")
+        return float("inf")
+    al = abs(float(losses.mean()))
+    if al == 0:
+        return float("inf")
+    if wins.len() == 0:
+        return 0.0
+    return float(wins.mean() / al)
+
+
+def probabilistic_sharpe(
+    df: DataFrameLike,
+    benchmark_sharpe: float = 0.0,
+    rf: float = 0.0,
+    periods: int = 252,
+) -> float:
+    """Probabilistic Sharpe ratio (Bailey-López de Prado).
+
+    The probability that the observed (annualised) Sharpe ratio is greater than
+    a given benchmark Sharpe (default 0.0).
+    """
+    r = _to_returns(df)
+    n = r.len()
+    if n < 2:
+        return float("nan")
+    rf_per_period = rf / periods
+    excess = r - rf_per_period
+    std = float(excess.std())
+    if std == 0:
+        return float("nan")
+    sr = float(excess.mean()) / std * math.sqrt(periods)
+    skew = excess.skew()
+    excess_kurt = excess.kurtosis()
+    if skew is None or excess_kurt is None:
+        return float("nan")
+    skew = float(skew)
+    kurt = float(excess_kurt + 3.0)
+    var_est = (1.0 - skew * sr + (kurt - 1.0) / 4.0 * sr**2) / (n - 1)
+    if var_est <= 0:
+        return float("nan")
+    z = (sr - benchmark_sharpe) / math.sqrt(var_est)
+    return _norm_cdf(z)
 
 
 # ---------------------------------------------------------------------------
@@ -519,6 +660,81 @@ def excess_return(df: DataFrameLike, base_df: DataFrameLike) -> float:
     return strat_ret - bench_ret
 
 
+def treynor_ratio(
+    df: DataFrameLike, base_df: DataFrameLike, rf: float = 0.0, periods: int = 252
+) -> float:
+    """Treynor ratio: annualized excess return / beta.
+
+    Measures risk-adjusted return per unit of systematic (market) risk.
+    """
+    _, beta = alpha_beta(df, base_df, periods)
+    if beta == 0:
+        return 0.0
+
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    )
+    r = joined.get_column(COL_RETURNS)
+    rf_per_period = rf / periods
+    annualized_excess = (float(r.mean()) - rf_per_period) * periods
+    return annualized_excess / beta
+
+
+def r_squared(df: DataFrameLike, base_df: DataFrameLike) -> float:
+    """R-squared: coefficient of determination from regression vs benchmark.
+
+    Proportion of strategy return variance explained by the benchmark.
+    """
+    c = correlation(df, base_df)
+    return c * c
+
+
+def up_capture(df: DataFrameLike, base_df: DataFrameLike) -> float:
+    """Up-market capture ratio.
+
+    Average strategy return on benchmark up-days / average benchmark return
+    on those same days.  Values > 1 mean the strategy captures more upside.
+    """
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    )
+    up_mask = joined.get_column("_base_returns") > 0
+    strat_up = joined.get_column(COL_RETURNS).filter(up_mask)
+    base_up = joined.get_column("_base_returns").filter(up_mask)
+    if base_up.len() == 0:
+        return float("nan")
+    base_mean = float(base_up.mean())
+    if base_mean == 0:
+        return float("nan")
+    return float(strat_up.mean() / base_mean)
+
+
+def down_capture(df: DataFrameLike, base_df: DataFrameLike) -> float:
+    """Down-market capture ratio.
+
+    Average strategy return on benchmark down-days / average benchmark return
+    on those same days.  Values < 1 mean the strategy loses less in down markets.
+    """
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    )
+    down_mask = joined.get_column("_base_returns") < 0
+    strat_down = joined.get_column(COL_RETURNS).filter(down_mask)
+    base_down = joined.get_column("_base_returns").filter(down_mask)
+    if base_down.len() == 0:
+        return float("nan")
+    base_mean = float(base_down.mean())
+    if base_mean == 0:
+        return float("nan")
+    return float(strat_down.mean() / base_mean)
+
+
 # ---------------------------------------------------------------------------
 # Regime Analysis
 # ---------------------------------------------------------------------------
@@ -740,6 +956,13 @@ _SUMMARY_METRIC_SPECS = [
     ("Worst Year", "worst_year", "pct"),
     ("Positive Months", "positive_months_pct", "pct"),
     ("Positive Years", "positive_years_pct", "pct"),
+    ("Omega Ratio", "omega_ratio", "float"),
+    ("Ulcer Index", "ulcer_index", "pct"),
+    ("Martin Ratio", "martin_ratio", "float"),
+    ("Gain-to-Pain Ratio", "gain_to_pain", "float"),
+    ("Kelly Criterion", "kelly_criterion", "float"),
+    ("Probabilistic Sharpe", "probabilistic_sharpe", "float"),
+    ("Payoff Ratio", "payoff_ratio", "float"),
 ]
 
 _COMPARISON_METRIC_SPECS = [
@@ -748,6 +971,10 @@ _COMPARISON_METRIC_SPECS = [
     ("Correlation", "correlation", "float"),
     ("Information Ratio", "information_ratio", "float"),
     ("Excess Return", "excess_return", "pct"),
+    ("Treynor Ratio", "treynor_ratio", "float"),
+    ("R-Squared", "r_squared", "pct"),
+    ("Up Capture", "up_capture", "pct"),
+    ("Down Capture", "down_capture", "pct"),
 ]
 
 
@@ -788,17 +1015,28 @@ def _summary_metric_values(
         "worst_year": float(worst_year(df)),
         "positive_months_pct": float(positive_months_pct(df)),
         "positive_years_pct": float(positive_years_pct(df)),
+        "omega_ratio": float(omega_ratio(df)),
+        "ulcer_index": float(ulcer_index(df)),
+        "martin_ratio": float(martin_ratio(df, rf, periods)),
+        "gain_to_pain": float(gain_to_pain(df)),
+        "kelly_criterion": float(kelly_criterion(df, rf, periods)),
+        "probabilistic_sharpe": float(probabilistic_sharpe(df, rf=rf, periods=periods)),
+        "payoff_ratio": float(payoff_ratio(df)),
     }
 
 
 def _comparison_metric_values(
-    df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
+    df: DataFrameLike,
+    base_df: DataFrameLike,
+    rf: float = 0.0,
+    periods: int = 252,
 ) -> dict[str, float]:
     """
     Compute raw numeric metrics that compare a strategy to a benchmark.
 
     Returned keys:
-        alpha, beta, correlation, information_ratio, excess_return
+        alpha, beta, correlation, information_ratio, excess_return,
+        treynor_ratio, r_squared, up_capture, down_capture
     """
     df = ensure_polars(df)
     base_df = ensure_polars(base_df, name="base_df")
@@ -809,6 +1047,10 @@ def _comparison_metric_values(
         "correlation": float(correlation(df, base_df)),
         "information_ratio": float(information_ratio(df, base_df, periods)),
         "excess_return": float(excess_return(df, base_df)),
+        "treynor_ratio": float(treynor_ratio(df, base_df, rf, periods)),
+        "r_squared": float(r_squared(df, base_df)),
+        "up_capture": float(up_capture(df, base_df)),
+        "down_capture": float(down_capture(df, base_df)),
     }
 
 
@@ -840,10 +1082,12 @@ def summary_metrics_raw(
             total_return, cagr, sharpe, sortino, max_drawdown, calmar,
             volatility, win_rate, profit_factor, best_day, worst_day,
             avg_win, avg_loss, value_at_risk, recovery_factor, skewness,
-            kurtosis
+            kurtosis, omega_ratio, ulcer_index, martin_ratio, gain_to_pain,
+            kelly_criterion, probabilistic_sharpe, payoff_ratio
 
         When base_df is provided, these additional keys are included:
-            alpha, beta, correlation, information_ratio, excess_return
+            alpha, beta, correlation, information_ratio, excess_return,
+            treynor_ratio, r_squared, up_capture, down_capture
 
     Example:
         {
@@ -856,7 +1100,7 @@ def summary_metrics_raw(
     """
     raw = _summary_metric_values(df, rf, periods)
     if base_df is not None:
-        raw.update(_comparison_metric_values(df, base_df, periods))
+        raw.update(_comparison_metric_values(df, base_df, rf, periods))
     return raw
 
 
@@ -890,7 +1134,7 @@ def summary_metrics(
             _format_summary_value(bench[key], fmt)
             for label, key, fmt in _SUMMARY_METRIC_SPECS
         ]
-        comparison = _comparison_metric_values(df, base_df, periods)
+        comparison = _comparison_metric_values(df, base_df, rf, periods)
         comparison_metrics = [label for label, _, _ in _COMPARISON_METRIC_SPECS]
         comparison_strat = [
             _format_summary_value(comparison[key], fmt)
