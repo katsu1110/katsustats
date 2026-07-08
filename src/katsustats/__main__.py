@@ -90,14 +90,22 @@ def _cmd_report(args: argparse.Namespace) -> None:
 def _cmd_snapshot(args: argparse.Namespace) -> None:
     df = _load(args.file, args.date_col, args.returns_col)
     try:
-        fig = plots.plot_snapshot(df, window=args.window, title=args.title)
-    except (ValueError, TypeError) as exc:
+        fig = plots.plot_snapshot(
+            df, window=args.window, title=args.title, theme=args.theme
+        )
+    except Exception as exc:
         sys.exit(str(exc))
 
     output = args.output or str(
         Path(args.file).parent / (Path(args.file).stem + "_snapshot.png")
     )
-    fig.savefig(output, dpi=150, bbox_inches="tight")
+    fig.savefig(
+        output,
+        dpi=150,
+        bbox_inches="tight",
+        facecolor=fig.get_facecolor(),
+        edgecolor="none",
+    )
     plt.close(fig)
     print(f"Snapshot written to {output}")
 
@@ -245,6 +253,12 @@ def main() -> None:
         default=COL_RETURNS,
         dest="returns_col",
         help="Name of the returns column (default: returns).",
+    )
+    p_snap.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        default="light",
+        help="Theme for the snapshot (default: light).",
     )
     p_snap.set_defaults(func=_cmd_snapshot)
 
