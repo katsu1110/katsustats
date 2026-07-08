@@ -275,6 +275,53 @@ class TestPlotRollingVolatility:
 
 
 # ---------------------------------------------------------------------------
+# plot_rolling_sortino
+# ---------------------------------------------------------------------------
+
+
+class TestPlotRollingSortino:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_rolling_sortino(sample_df, window=5)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_rolling_sortino(sample_df, window=5, figsize=(8, 3))
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
+# plot_rolling_beta
+# ---------------------------------------------------------------------------
+
+
+class TestPlotRollingBeta:
+    def test_returns_figure(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5, figsize=(8, 3))
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
+# plot_rolling_correlation
+# ---------------------------------------------------------------------------
+
+
+class TestPlotRollingCorrelation:
+    def test_returns_figure(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_correlation(sample_df, benchmark_df, window=5)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_correlation(
+            sample_df, benchmark_df, window=5, figsize=(8, 3)
+        )
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+
+# ---------------------------------------------------------------------------
 # plot_drawdown_periods
 # ---------------------------------------------------------------------------
 

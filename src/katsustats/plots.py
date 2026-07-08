@@ -30,6 +30,8 @@ _COLORS = {
     "negative": "#F44336",  # Material Red
     "neutral": "#9E9E9E",  # Material Grey
     "fill": "#dbeafe",  # soft blue tint matching strategy colour
+    "gain": "#4CAF50",  # alias for positive
+    "loss": "#F44336",  # alias for negative
     "grid": "#E0E0E0",
     "text": "#212121",
     "text_secondary": "#757575",
@@ -606,6 +608,147 @@ def plot_rolling_volatility(
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
     ax.legend(fontsize=9, frameon=False)
     _add_title(ax, fig, f"Rolling Volatility ({window}d)")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Rolling Sortino
+# ---------------------------------------------------------------------------
+
+
+def plot_rolling_sortino(
+    df: DataFrameLike,
+    window: int = 126,
+    periods: int = 252,
+    rf: float = 0.0,
+    figsize: tuple = (12, 4),
+) -> Figure:
+    """Rolling Sortino ratio over a given window."""
+    df = ensure_polars(df)
+    roll = stats.rolling_sortino(df, window, periods, rf)
+    dates = roll.get_column(COL_DATE).to_numpy()
+    vals = roll.get_column("rolling_sortino").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.plot(dates, vals, lw=1.4, color=_COLORS["strategy"])
+    ax.fill_between(
+        dates,
+        vals,
+        0,
+        where=vals >= 0,
+        color=_COLORS["gain"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.fill_between(
+        dates,
+        vals,
+        0,
+        where=vals < 0,
+        color=_COLORS["loss"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    _add_title(ax, fig, f"Rolling Sortino ({window}d)")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Rolling Beta
+# ---------------------------------------------------------------------------
+
+
+def plot_rolling_beta(
+    df: DataFrameLike,
+    base_df: DataFrameLike,
+    window: int = 126,
+    figsize: tuple = (12, 4),
+) -> Figure:
+    """Rolling beta vs benchmark over a given window."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, name="base_df")
+    roll = stats.rolling_beta(df, base_df, window)
+    dates = roll.get_column(COL_DATE).to_numpy()
+    vals = roll.get_column("rolling_beta").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.plot(dates, vals, lw=1.4, color=_COLORS["strategy"])
+    ax.fill_between(
+        dates,
+        vals,
+        1,
+        where=vals >= 1,
+        color=_COLORS["gain"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.fill_between(
+        dates,
+        vals,
+        1,
+        where=vals < 1,
+        color=_COLORS["loss"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.axhline(1, color=_COLORS["neutral"], lw=0.8, ls="--")
+    _add_title(ax, fig, f"Rolling Beta ({window}d)")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# Plot: Rolling Correlation
+# ---------------------------------------------------------------------------
+
+
+def plot_rolling_correlation(
+    df: DataFrameLike,
+    base_df: DataFrameLike,
+    window: int = 126,
+    figsize: tuple = (12, 4),
+) -> Figure:
+    """Rolling Pearson correlation vs benchmark over a given window."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, name="base_df")
+    roll = stats.rolling_correlation(df, base_df, window)
+    dates = roll.get_column(COL_DATE).to_numpy()
+    vals = roll.get_column("rolling_correlation").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    ax.plot(dates, vals, lw=1.4, color=_COLORS["strategy"])
+    ax.fill_between(
+        dates,
+        vals,
+        0,
+        where=vals >= 0,
+        color=_COLORS["gain"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.fill_between(
+        dates,
+        vals,
+        0,
+        where=vals < 0,
+        color=_COLORS["loss"],
+        alpha=0.2,
+        interpolate=True,
+    )
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    _add_title(ax, fig, f"Rolling Correlation ({window}d)")
     fig.autofmt_xdate()
     fig.tight_layout()
     return fig

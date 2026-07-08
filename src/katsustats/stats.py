@@ -886,10 +886,11 @@ def day_of_week_stats(df: DataFrameLike) -> pl.DataFrame:
 
 
 def rolling_sharpe(
-    df: DataFrameLike, window: int = 126, periods: int = 252
+    df: DataFrameLike, window: int = 126, periods: int = 252, rf: float = 0.0
 ) -> pl.DataFrame:
     """Rolling Sharpe ratio over a given window."""
     df = ensure_polars(df)
+    rf_per_period = rf / periods
     return (
         df.sort(COL_DATE)
         .with_columns(
@@ -902,10 +903,185 @@ def rolling_sharpe(
         )
         .with_columns(
             pl.when(pl.col("_rs") > 0)
-            .then(pl.col("_rm") / pl.col("_rs") * float(periods**0.5))
+            .then((pl.col("_rm") - rf_per_period) / pl.col("_rs") * float(periods**0.5))
             .alias("rolling_sharpe")
         )
         .select([COL_DATE, "rolling_sharpe"])
+    )
+
+
+def rolling_sortino(
+    df: DataFrameLike,
+    window: int = 126,
+    periods: int = 252,
+    rf: float = 0.0,
+) -> pl.DataFrame:
+    """Rolling Sortino ratio over a given window."""
+    df = ensure_polars(df)
+    rf_per_period = rf / periods
+    return (
+        df.sort(COL_DATE)
+        .with_columns((pl.col(COL_RETURNS) - rf_per_period).alias("_excess"))
+        .with_columns(
+            pl.col("_excess").rolling_mean(window_size=window).alias("_mean_excess"),
+            (
+                pl.col("_excess")
+                .clip(upper_bound=0.0)
+                .pow(2)
+                .rolling_mean(window_size=window)
+                .sqrt()
+            ).alias("_downside"),
+        )
+        .with_columns(
+            pl.when(pl.col("_mean_excess").is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                pl.when(pl.col("_downside") > 0)
+                .then(
+                    pl.col("_mean_excess") / pl.col("_downside") * float(periods**0.5)
+                )
+                .otherwise(pl.lit(None))
+            )
+            .alias("rolling_sortino")
+        )
+        .select([COL_DATE, "rolling_sortino"])
+    )
+
+
+def rolling_beta(
+    df: DataFrameLike, base_df: DataFrameLike, window: int = 126
+) -> pl.DataFrame:
+    """Rolling beta (market exposure) vs benchmark over a given window."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    ).sort(COL_DATE)
+    n = float(window)
+    return (
+        joined.with_columns(
+            (pl.col(COL_RETURNS) * pl.col("_base_returns"))
+            .rolling_mean(window_size=window)
+            .alias("_mean_prod"),
+            pl.col(COL_RETURNS).rolling_mean(window_size=window).alias("_mean_r"),
+            pl.col("_base_returns").rolling_mean(window_size=window).alias("_mean_b"),
+            pl.col("_base_returns")
+            .rolling_std(window_size=window, ddof=1)
+            .alias("_std_b"),
+        )
+        .with_columns(
+            pl.when(pl.col("_std_b").is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                pl.when(pl.col("_std_b") > 0)
+                .then(
+                    (pl.col("_mean_prod") - pl.col("_mean_r") * pl.col("_mean_b"))
+                    * n
+                    / (n - 1.0)
+                    / pl.col("_std_b").pow(2)
+                )
+                .otherwise(pl.lit(None))
+            )
+            .alias("rolling_beta")
+        )
+        .select([COL_DATE, "rolling_beta"])
+    )
+
+
+def rolling_correlation(
+    df: DataFrameLike, base_df: DataFrameLike, window: int = 126
+) -> pl.DataFrame:
+    """Rolling Pearson correlation vs benchmark over a given window."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    ).sort(COL_DATE)
+    n = float(window)
+    return (
+        joined.with_columns(
+            (pl.col(COL_RETURNS) * pl.col("_base_returns"))
+            .rolling_mean(window_size=window)
+            .alias("_mean_prod"),
+            pl.col(COL_RETURNS).rolling_mean(window_size=window).alias("_mean_r"),
+            pl.col("_base_returns").rolling_mean(window_size=window).alias("_mean_b"),
+            pl.col(COL_RETURNS).rolling_std(window_size=window, ddof=1).alias("_std_r"),
+            pl.col("_base_returns")
+            .rolling_std(window_size=window, ddof=1)
+            .alias("_std_b"),
+        )
+        .with_columns(
+            pl.when(pl.col("_mean_r").is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                pl.when((pl.col("_std_r") > 0) & (pl.col("_std_b") > 0))
+                .then(
+                    (pl.col("_mean_prod") - pl.col("_mean_r") * pl.col("_mean_b"))
+                    * n
+                    / (n - 1.0)
+                    / (pl.col("_std_r") * pl.col("_std_b"))
+                )
+                .otherwise(pl.lit(None))
+            )
+            .alias("rolling_correlation")
+        )
+        .select([COL_DATE, "rolling_correlation"])
+    )
+
+
+def _window_max_drawdown(s: pl.Series) -> float:
+    """Max drawdown over a single window (helper for rolling_map)."""
+    cumval = (s + 1).cum_prod()
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
+    dd = (cumval - running_max) / running_max
+    return float(dd.min())
+
+
+def rolling_drawdown(df: DataFrameLike, window: int = 126) -> pl.DataFrame:
+    """Rolling max drawdown over a given window."""
+    df = ensure_polars(df)
+    return (
+        df.sort(COL_DATE)
+        .with_columns(
+            pl.col(COL_RETURNS)
+            .rolling_map(_window_max_drawdown, window_size=window)
+            .alias("rolling_drawdown")
+        )
+        .select([COL_DATE, "rolling_drawdown"])
+    )
+
+
+def rolling_volatility_ratio(
+    df: DataFrameLike, base_df: DataFrameLike, window: int = 126, periods: int = 252
+) -> pl.DataFrame:
+    """Rolling volatility ratio: strategy vol / benchmark vol over a given window."""
+    df = ensure_polars(df)
+    base_df = ensure_polars(base_df, "base_df")
+    joined = df.join(
+        base_df.rename({COL_RETURNS: "_base_returns"}), on=COL_DATE, how="inner"
+    ).sort(COL_DATE)
+    return (
+        joined.with_columns(
+            (
+                pl.col(COL_RETURNS).rolling_std(window_size=window, ddof=1)
+                * float(periods**0.5)
+            ).alias("_vol_r"),
+            (
+                pl.col("_base_returns").rolling_std(window_size=window, ddof=1)
+                * float(periods**0.5)
+            ).alias("_vol_b"),
+        )
+        .with_columns(
+            pl.when(pl.col("_vol_b").is_null())
+            .then(pl.lit(None))
+            .otherwise(
+                pl.when(pl.col("_vol_b") > 0)
+                .then(pl.col("_vol_r") / pl.col("_vol_b"))
+                .otherwise(pl.lit(None))
+            )
+            .alias("rolling_vol_ratio")
+        )
+        .select([COL_DATE, "rolling_vol_ratio"])
     )
 
 

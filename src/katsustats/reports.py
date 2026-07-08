@@ -859,9 +859,24 @@ def full(
         plots.plot_rolling_sharpe(returns, benchmark, figsize=figsize_small),
     )
     _handle_fig(
+        "rolling_sortino",
+        plots.plot_rolling_sortino(
+            returns, periods=periods, rf=rf, figsize=figsize_small
+        ),
+    )
+    _handle_fig(
         "rolling_volatility",
         plots.plot_rolling_volatility(returns, benchmark, figsize=figsize_small),
     )
+    if benchmark is not None:
+        _handle_fig(
+            "rolling_beta",
+            plots.plot_rolling_beta(returns, benchmark, figsize=figsize_small),
+        )
+        _handle_fig(
+            "rolling_correlation",
+            plots.plot_rolling_correlation(returns, benchmark, figsize=figsize_small),
+        )
     _handle_fig("dow_returns", plots.plot_dow_returns(returns))
 
     mc_summary = None
@@ -1239,6 +1254,9 @@ def _build_html(
     sharpe_b64 = _fig_to_base64(
         plots.plot_rolling_sharpe(returns, benchmark, figsize=(8, 4))
     )
+    sortino_b64 = _fig_to_base64(
+        plots.plot_rolling_sortino(returns, periods=periods, rf=rf, figsize=(8, 4))
+    )
     vol_b64 = _fig_to_base64(
         plots.plot_rolling_volatility(returns, benchmark, figsize=(8, 4))
     )
@@ -1246,16 +1264,29 @@ def _build_html(
     dow_table_html = _df_to_html_table(dow_df)
     dow_chart_b64 = _fig_to_base64(plots.plot_dow_returns(returns, figsize=(8, 4)))
 
-    charts_grid_block = (
-        f'<div class="charts-grid">'
-        f"{_grid_section('Monthly Returns Heatmap', heatmap_b64)}"
-        f"{_grid_section('Daily Return Distribution', dist_b64)}"
-        f"{_grid_section('Rolling Sharpe', sharpe_b64)}"
-        f"{_grid_section('Rolling Volatility', vol_b64)}"
-        f'<div class="section"><h2>Day-of-Week Statistics</h2>{dow_table_html}</div>'
-        f"{_grid_section('Day-of-Week Analysis', dow_chart_b64)}"
-        f"</div>"
+    grid_items = [
+        _grid_section("Monthly Returns Heatmap", heatmap_b64),
+        _grid_section("Daily Return Distribution", dist_b64),
+        _grid_section("Rolling Sharpe", sharpe_b64),
+        _grid_section("Rolling Sortino", sortino_b64),
+        _grid_section("Rolling Volatility", vol_b64),
+    ]
+    if benchmark is not None:
+        beta_b64 = _fig_to_base64(
+            plots.plot_rolling_beta(returns, benchmark, figsize=(8, 4))
+        )
+        corr_b64 = _fig_to_base64(
+            plots.plot_rolling_correlation(returns, benchmark, figsize=(8, 4))
+        )
+        grid_items.append(_grid_section("Rolling Beta", beta_b64))
+        grid_items.append(_grid_section("Rolling Correlation", corr_b64))
+    grid_items.extend(
+        [
+            f'<div class="section"><h2>Day-of-Week Statistics</h2>{dow_table_html}</div>',
+            _grid_section("Day-of-Week Analysis", dow_chart_b64),
+        ]
     )
+    charts_grid_block = f'<div class="charts-grid">{"".join(grid_items)}</div>'
 
     # ── Monte Carlo Analysis (full-width) ───────────────────────────
     if monte_carlo:
