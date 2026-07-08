@@ -30,6 +30,10 @@ _COMPARISON_KEYS = {
     "correlation",
     "information_ratio",
     "excess_return",
+    "treynor_ratio",
+    "r_squared",
+    "up_capture",
+    "down_capture",
 }
 
 _MARKDOWN_HEADLINE_SPECS = [

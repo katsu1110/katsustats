@@ -987,7 +987,9 @@ def _summary_metric_values(
     Returned keys:
         total_return, cagr, sharpe, sortino, max_drawdown, calmar,
         volatility, win_rate, profit_factor, best_day, worst_day,
-        avg_win, avg_loss, value_at_risk, recovery_factor, skewness, kurtosis
+        avg_win, avg_loss, value_at_risk, recovery_factor, skewness,
+        kurtosis, omega_ratio, ulcer_index, martin_ratio, gain_to_pain,
+        kelly_criterion, probabilistic_sharpe, payoff_ratio
     """
     df = ensure_polars(df)
     return {
