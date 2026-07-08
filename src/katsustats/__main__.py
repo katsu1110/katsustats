@@ -6,9 +6,10 @@ import argparse
 import sys
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import polars as pl
 
-from katsustats import reports
+from katsustats import plots, reports
 from katsustats._constants import COL_DATE, COL_RETURNS
 
 
@@ -84,6 +85,29 @@ def _cmd_report(args: argparse.Namespace) -> None:
         mc_method=args.mc_method,
     )
     print(f"Report written to {output}")
+
+
+def _cmd_snapshot(args: argparse.Namespace) -> None:
+    df = _load(args.file, args.date_col, args.returns_col)
+    try:
+        fig = plots.plot_snapshot(
+            df, window=args.window, title=args.title, theme=args.theme
+        )
+    except ValueError as exc:
+        sys.exit(str(exc))
+
+    output = args.output or str(
+        Path(args.file).parent / (Path(args.file).stem + "_snapshot.png")
+    )
+    fig.savefig(
+        output,
+        dpi=150,
+        bbox_inches="tight",
+        facecolor=fig.get_facecolor(),
+        edgecolor="none",
+    )
+    plt.close(fig)
+    print(f"Snapshot written to {output}")
 
 
 def main() -> None:
@@ -198,6 +222,45 @@ def main() -> None:
         help="Monte Carlo resampling method (default: bootstrap).",
     )
     p_report.set_defaults(func=_cmd_report)
+
+    p_snap = sub.add_parser(
+        "snapshot",
+        help="Save a compact performance card as a PNG image.",
+    )
+    p_snap.add_argument("file", help="Path to a .csv or .parquet returns file.")
+    p_snap.add_argument(
+        "--window",
+        default="1W",
+        help='Lookback window: "1W", "2W", "1M", "3M", or an integer (default: 1W).',
+    )
+    p_snap.add_argument(
+        "--title", default="Strategy", help="Card title (default: Strategy)."
+    )
+    p_snap.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="Output PNG path (default: <file>_snapshot.png).",
+    )
+    p_snap.add_argument(
+        "--date-col",
+        default=COL_DATE,
+        dest="date_col",
+        help="Name of the date column (default: date).",
+    )
+    p_snap.add_argument(
+        "--returns-col",
+        default=COL_RETURNS,
+        dest="returns_col",
+        help="Name of the returns column (default: returns).",
+    )
+    p_snap.add_argument(
+        "--theme",
+        choices=["light", "dark"],
+        default="light",
+        help="Theme for the snapshot (default: light).",
+    )
+    p_snap.set_defaults(func=_cmd_snapshot)
 
     args = parser.parse_args()
     args.func(args)

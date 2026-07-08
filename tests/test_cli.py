@@ -493,3 +493,108 @@ class TestPeriodsAndMcMethodCliFlags:
         payload = json.loads(out.read_text(encoding="utf-8"))
         mc = payload["monte_carlo"]
         assert mc["terminal"]["min"] < mc["terminal"]["max"]
+
+
+# ---------------------------------------------------------------------------
+# snapshot subcommand
+# ---------------------------------------------------------------------------
+
+
+class TestSnapshotCommand:
+    def test_creates_png(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(csv_file), "-o", str(out)],
+        )
+        main()
+        assert out.exists()
+        assert out.read_bytes()[:4] == b"\x89PNG"
+
+    def test_default_output_path(self, csv_file: Path, monkeypatch):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(csv_file)],
+        )
+        main()
+        expected = csv_file.parent / (csv_file.stem + "_snapshot.png")
+        assert expected.exists()
+
+    def test_custom_window_string(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(csv_file), "--window", "1M", "-o", str(out)],
+        )
+        main()
+        assert out.exists()
+
+    def test_integer_window(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(csv_file), "--window", "5", "-o", str(out)],
+        )
+        main()
+        assert out.exists()
+
+    def test_bad_window_exits(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(csv_file), "--window", "2Y", "-o", str(out)],
+        )
+        with pytest.raises(SystemExit):
+            main()
+
+    def test_custom_title(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "snapshot",
+                str(csv_file),
+                "--title",
+                "MyAlpha",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        assert out.exists()
+
+    def test_parquet_input(self, parquet_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(parquet_file), "-o", str(out)],
+        )
+        main()
+        assert out.exists()
+
+    def test_missing_file_exits(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["katsustats", "snapshot", str(tmp_path / "nope.csv")],
+        )
+        with pytest.raises(SystemExit, match="file not found"):
+            main()
+
+    def test_dark_theme_creates_png(self, csv_file: Path, tmp_path: Path, monkeypatch):
+        out = tmp_path / "snap_dark.png"
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "katsustats",
+                "snapshot",
+                str(csv_file),
+                "--theme",
+                "dark",
+                "-o",
+                str(out),
+            ],
+        )
+        main()
+        assert out.exists()
+        assert out.read_bytes()[:4] == b"\x89PNG"

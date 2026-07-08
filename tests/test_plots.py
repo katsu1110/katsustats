@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import polars as pl
 import pytest
@@ -9,6 +10,7 @@ from matplotlib.collections import PolyCollection
 from matplotlib.figure import Figure
 
 from katsustats import plots
+from katsustats.plots import _COLORS, _parse_window
 
 
 @pytest.fixture(autouse=True)
@@ -334,7 +336,6 @@ class TestPlotDowReturns:
         ax = fig.axes[0]
         boxes = [p for p in ax.patches if hasattr(p, "get_facecolor")]
         colors = [mcolors.to_hex(p.get_facecolor()[:3]) for p in boxes]
-        from katsustats.plots import _COLORS
 
         pos = mcolors.to_hex(mcolors.to_rgb(_COLORS["positive"]))
         neg = mcolors.to_hex(mcolors.to_rgb(_COLORS["negative"]))
@@ -504,6 +505,178 @@ class TestPlotMonteCarloDistribution:
 
 
 # ---------------------------------------------------------------------------
+# _parse_window
+# ---------------------------------------------------------------------------
+
+
+class TestParseWindow:
+    @pytest.mark.parametrize(
+        ("spec", "expected"),
+        [("1W", 5), ("2W", 10), ("1M", 21), ("3M", 63)],
+    )
+    def test_string_specs(self, spec, expected):
+        assert _parse_window(spec) == expected
+
+    def test_bad_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="Unrecognised window"):
+            _parse_window("2Y")
+
+    def test_int_passthrough(self):
+        assert _parse_window(7) == 7
+
+    def test_integer_string(self):
+        assert _parse_window("10") == 10
+
+    @pytest.mark.parametrize("spec", ["1D", "2Y", "6M"])
+    def test_unrecognised_strings_raise_value_error(self, spec):
+        with pytest.raises(ValueError, match="Unrecognised window"):
+            _parse_window(spec)
+
+    def test_zero_raises_value_error(self):
+        with pytest.raises(ValueError, match="window must be >= 1"):
+            _parse_window(0)
+
+    def test_zero_string_raises_value_error(self):
+        with pytest.raises(ValueError, match="window must be >= 1"):
+            _parse_window("0")
+
+
+# ---------------------------------------------------------------------------
+# plot_snapshot
+# ---------------------------------------------------------------------------
+
+
+class TestPlotSnapshot:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_axes_count(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        assert len(fig.axes) == 6
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, figsize=(8, 4))
+        assert fig.get_size_inches()[0] == pytest.approx(8.0)
+
+    def test_card_axes_no_ticks(self, sample_df):
+        fig = plots.plot_snapshot(sample_df)
+        for ax in fig.axes[:4]:
+            assert len(ax.get_xticks()) == 0
+            assert len(ax.get_yticks()) == 0
+
+    def test_equity_curve_has_line(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window=5)
+        ax_curve = fig.axes[4]
+        lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 1
+
+    def test_window_single_int_uses_two_curve_points(self, sample_df):
+        # curve has n+1 points: baseline prepended at synthetic prior date
+        fig = plots.plot_snapshot(sample_df, window=1)
+        ax_curve = fig.axes[4]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 2]
+        assert len(data_lines) >= 1
+
+    def test_window_int_uses_n_rows(self, sample_df):
+        # curve has n+1 points: baseline prepended at synthetic prior date
+        fig = plots.plot_snapshot(sample_df, window=5)
+        ax_curve = fig.axes[4]
+        data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 6]
+        assert len(data_lines) >= 1
+
+    @pytest.mark.parametrize("spec", ["1W", "2W", "1M", "3M"])
+    def test_window_strings_all_return_figure(self, sample_df, spec):
+        fig = plots.plot_snapshot(sample_df, window=spec)
+        assert isinstance(fig, Figure)
+
+    def test_positive_return_card_is_green(self, all_positive_df):
+        fig = plots.plot_snapshot(all_positive_df)
+        # Select the topmost patch (the card bg, not any shadow)
+        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
+        assert face == "#10b981"
+
+    def test_negative_return_card_is_red(self, all_negative_df):
+        fig = plots.plot_snapshot(all_negative_df)
+        # Select the topmost patch (the card bg, not any shadow)
+        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
+        assert face == "#ef4444"
+
+    def test_single_row_sharpe_shows_dash(self, single_row_df):
+        fig = plots.plot_snapshot(single_row_df, window=1)
+        sharpe_ax = fig.axes[1]
+        texts = [t.get_text() for t in sharpe_ax.texts]
+        assert any("—" in t for t in texts)
+
+    def test_accepts_pandas_input(self, sample_pandas_df):
+        fig = plots.plot_snapshot(sample_pandas_df)
+        assert isinstance(fig, Figure)
+
+    def test_suptitle_contains_title_and_window(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, title="MyStrat", window="1W")
+        sup = fig._suptitle.get_text()
+        assert "MyStrat" in sup
+        assert "1W" in sup
+
+    def test_daily_bars_present_for_short_window(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, window="1W")
+        ax_curve = fig.axes[4]
+        assert len(ax_curve.containers) >= 1
+
+    def test_daily_bars_absent_for_long_window(self):
+        import pandas as pd
+
+        dates = pd.date_range("2023-01-01", periods=150)
+        df = pd.DataFrame({"date": dates, "returns": [0.01] * 150})
+        fig = plots.plot_snapshot(df, window=150)
+        ax_curve = fig.axes[4]
+        assert len(ax_curve.containers) == 0
+
+    def test_daily_bars_colors(self, all_positive_df, all_negative_df):
+        c_pos, c_neg = "#10b981", "#ef4444"
+        fig_pos = plots.plot_snapshot(all_positive_df, window="1W")
+        pos_colors = [p.get_facecolor() for p in fig_pos.axes[4].patches]
+        assert all(mcolors.to_hex(c[:3]) == c_pos for c in pos_colors)
+
+        fig_neg = plots.plot_snapshot(all_negative_df, window="1W")
+        neg_colors = [p.get_facecolor() for p in fig_neg.axes[4].patches]
+        assert all(mcolors.to_hex(c[:3]) == c_neg for c in neg_colors)
+
+    # --- Dark theme tests ---
+
+    def test_dark_theme_returns_figure(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        assert isinstance(fig, Figure)
+
+    def test_dark_theme_background_color(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        assert mcolors.to_hex(fig.get_facecolor()[:3]) == "#0b0f19"
+
+    def test_dark_theme_chart_axes_facecolor_is_dark(self, sample_df):
+        # In dark mode both chart axes should NOT have a transparent background.
+        # We verify they are visually distinct from the card axes (which are "none"/transparent).
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        card_axes_fc = fig.axes[
+            0
+        ].get_facecolor()  # card axes are set to "none" → (0,0,0,0)
+        for ax in (fig.axes[4], fig.axes[5]):
+            assert ax.get_facecolor() != card_axes_fc, (
+                f"Chart ax facecolor {ax.get_facecolor()!r} should differ from transparent card ax"
+            )
+
+    def test_dark_theme_card_has_shadow_patch(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        # Dark mode adds a shadow patch before the card bg, so each card ax has >= 2 patches
+        for ax in fig.axes[:4]:
+            assert len(ax.patches) >= 2
+
+    def test_dark_theme_glow_lines_present(self, sample_df):
+        fig = plots.plot_snapshot(sample_df, theme="dark")
+        ax_curve = fig.axes[4]
+        # Dark mode plots 3 extra glow lines + 1 main line + axhline = at least 5
+        assert len(ax_curve.get_lines()) >= 5
+
+
 # Bug 1: plot_drawdown anchored at initial capital
 # ---------------------------------------------------------------------------
 
