@@ -308,6 +308,10 @@ summary = katsustats.stats.monte_carlo_summary(
 
 Generate a compact, single-image performance card (a "snapshot") showing key metrics, an equity curve, and underwater drawdowns. This is perfect for quick sharing on social media or in chat.
 
+| Light Theme | Dark Theme |
+|-------------|------------|
+| ![Snapshot light mode](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/snapshot_light.png) | ![Snapshot dark mode](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/snapshot_dark.png) |
+
 **Via CLI:**
 ```bash
 # Save a snapshot for the last 1 Month
