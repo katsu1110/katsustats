@@ -89,7 +89,7 @@ from .stats import (
     worst_year,
 )
 
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 __all__ = [
     # submodules
