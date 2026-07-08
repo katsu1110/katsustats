@@ -636,8 +636,8 @@ class TestSummaryMetrics:
     def test_benchmark_adds_comparison_rows(self, sample_df, benchmark_df):
         without = stats.summary_metrics(sample_df)
         with_bench = stats.summary_metrics(sample_df, benchmark_df)
-        # With benchmark adds Alpha, Beta, Correlation, IR, Excess Return
-        assert with_bench.height == without.height + 5
+        # With benchmark adds comparison metrics (9 rows)
+        assert with_bench.height == without.height + 9
 
     def test_all_values_are_strings(self, sample_df):
         result = stats.summary_metrics(sample_df)
@@ -676,6 +676,13 @@ class TestSummaryMetricsRaw:
             "worst_year",
             "positive_months_pct",
             "positive_years_pct",
+            "omega_ratio",
+            "ulcer_index",
+            "martin_ratio",
+            "gain_to_pain",
+            "kelly_criterion",
+            "probabilistic_sharpe",
+            "payoff_ratio",
         }
 
     def test_all_values_are_floats(self, sample_df):
@@ -693,6 +700,10 @@ class TestSummaryMetricsRaw:
             "correlation",
             "information_ratio",
             "excess_return",
+            "treynor_ratio",
+            "r_squared",
+            "up_capture",
+            "down_capture",
         }:
             assert key not in without
             assert key in with_bench
@@ -1475,3 +1486,250 @@ class TestEmptyInputHardening:
             pl.col("date").cast(pl.Date)
         )
         assert math.isnan(stats.information_ratio(df, df))
+
+
+# ---------------------------------------------------------------------------
+# Risk-Adjusted Ratios (#14)
+# ---------------------------------------------------------------------------
+
+
+class TestOmegaRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.omega_ratio(sample_df), float)
+
+    def test_positive_when_mixed(self, sample_df):
+        assert stats.omega_ratio(sample_df) > 0
+
+    def test_all_positive_returns_inf(self, all_positive_df):
+        assert stats.omega_ratio(all_positive_df) == float("inf")
+
+    def test_all_negative_returns_zero(self, all_negative_df):
+        assert stats.omega_ratio(all_negative_df) == 0.0
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.omega_ratio(empty_df))
+
+    def test_threshold_parameter(self, sample_df):
+        r0 = stats.omega_ratio(sample_df, threshold=0.0)
+        rp = stats.omega_ratio(sample_df, threshold=0.01)
+        # Higher threshold → less upside / more downside → lower Omega
+        assert rp < r0
+
+
+class TestUlcerIndex:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.ulcer_index(sample_df), float)
+
+    def test_non_negative(self, sample_df):
+        assert stats.ulcer_index(sample_df) >= 0
+
+    def test_all_positive_is_zero(self, all_positive_df):
+        assert stats.ulcer_index(all_positive_df) == 0.0
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.ulcer_index(empty_df))
+
+
+class TestMartinRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.martin_ratio(sample_df), float)
+
+    def test_all_positive_high(self, all_positive_df):
+        # No drawdown → UI ≈ 0 → Martin should be large
+        assert stats.martin_ratio(all_positive_df) > 0
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.martin_ratio(empty_df))
+
+    def test_rf_parameter(self, sample_df):
+        m0 = stats.martin_ratio(sample_df, rf=0.0)
+        m1 = stats.martin_ratio(sample_df, rf=0.05)
+        # Higher risk-free rate → lower Martin
+        assert m1 < m0
+
+
+class TestGainToPain:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.gain_to_pain(sample_df), float)
+
+    def test_positive_when_mixed(self, sample_df):
+        assert stats.gain_to_pain(sample_df) > 0
+
+    def test_all_positive_returns_inf(self, all_positive_df):
+        assert stats.gain_to_pain(all_positive_df) == float("inf")
+
+    def test_all_negative_is_negative(self, all_negative_df):
+        assert stats.gain_to_pain(all_negative_df) < 0
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.gain_to_pain(empty_df))
+
+
+class TestKellyCriterion:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.kelly_criterion(sample_df), float)
+
+    def test_positive_for_profitable(self, sample_df):
+        assert stats.kelly_criterion(sample_df) > 0
+
+    def test_all_positive_non_zero(self, all_positive_df):
+        assert stats.kelly_criterion(all_positive_df) > 0
+
+    def test_all_negative_negative(self, all_negative_df):
+        assert stats.kelly_criterion(all_negative_df) < 0
+
+    def test_single_row(self, single_row_df):
+        assert math.isnan(stats.kelly_criterion(single_row_df))
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.kelly_criterion(empty_df))
+
+    def test_rf_parameter(self, sample_df):
+        k0 = stats.kelly_criterion(sample_df, rf=0.0)
+        k1 = stats.kelly_criterion(sample_df, rf=0.05)
+        # Higher rf → lower Kelly
+        assert k1 < k0
+
+
+class TestProbabilisticSharpe:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.probabilistic_sharpe(sample_df), float)
+
+    def test_in_unit_interval(self, sample_df):
+        psr = stats.probabilistic_sharpe(sample_df)
+        assert 0.0 <= psr <= 1.0
+
+    def test_benchmark_parameter(self, sample_df):
+        psr0 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=0.0)
+        psr1 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=2.0)
+        # Higher benchmark → lower PSR
+        assert psr1 < psr0
+
+    def test_single_row(self, single_row_df):
+        assert math.isnan(stats.probabilistic_sharpe(single_row_df))
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.probabilistic_sharpe(empty_df))
+
+
+class TestPayoffRatio:
+    def test_returns_float(self, sample_df):
+        assert isinstance(stats.payoff_ratio(sample_df), float)
+
+    def test_positive(self, sample_df):
+        assert stats.payoff_ratio(sample_df) > 0
+
+    def test_all_positive_returns_inf(self, all_positive_df):
+        assert stats.payoff_ratio(all_positive_df) == float("inf")
+
+    def test_all_negative_returns_zero(self, all_negative_df):
+        assert stats.payoff_ratio(all_negative_df) == 0.0
+
+    def test_empty_df(self, empty_df):
+        assert math.isnan(stats.payoff_ratio(empty_df))
+
+    def test_known_value(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "returns": [0.02, -0.01, 0.03, -0.02],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+        # avg_win = (0.02 + 0.03) / 2 = 0.025
+        # avg_loss = (-0.01 + -0.02) / 2 = -0.015 → abs = 0.015
+        # payoff = 0.025 / 0.015 ≈ 1.6667
+        expected = 0.025 / 0.015
+        assert abs(stats.payoff_ratio(df) - expected) < 1e-10
+
+
+# ---------------------------------------------------------------------------
+# Benchmark-Relative Metrics (#16)
+# ---------------------------------------------------------------------------
+
+
+class TestTreynorRatio:
+    def test_returns_float(self, sample_df, benchmark_df):
+        assert isinstance(stats.treynor_ratio(sample_df, benchmark_df), float)
+
+    def test_same_returns_zero_or_near(self, sample_df):
+        # When strategy == benchmark, excess return ≈ 0 → Treynor ≈ 0
+        tr = stats.treynor_ratio(sample_df, sample_df)
+        assert math.isfinite(tr)
+
+    def test_rf_parameter(self, sample_df, benchmark_df):
+        t0 = stats.treynor_ratio(sample_df, benchmark_df, rf=0.0)
+        t1 = stats.treynor_ratio(sample_df, benchmark_df, rf=0.05)
+        assert t1 < t0
+
+
+class TestRSquared:
+    def test_returns_float(self, sample_df, benchmark_df):
+        assert isinstance(stats.r_squared(sample_df, benchmark_df), float)
+
+    def test_in_unit_interval(self, sample_df, benchmark_df):
+        rsq = stats.r_squared(sample_df, benchmark_df)
+        assert 0.0 <= rsq <= 1.0
+
+    def test_self_is_one(self, sample_df):
+        assert abs(stats.r_squared(sample_df, sample_df) - 1.0) < 1e-10
+
+
+class TestUpCapture:
+    def test_returns_float(self, sample_df, benchmark_df):
+        assert isinstance(stats.up_capture(sample_df, benchmark_df), float)
+
+    def test_positive(self, sample_df, benchmark_df):
+        assert stats.up_capture(sample_df, benchmark_df) > 0
+
+    def test_self_returns_one(self, sample_df):
+        assert abs(stats.up_capture(sample_df, sample_df) - 1.0) < 1e-10
+
+
+class TestDownCapture:
+    def test_returns_float(self, sample_df, benchmark_df):
+        assert isinstance(stats.down_capture(sample_df, benchmark_df), float)
+
+    def test_positive(self, sample_df, benchmark_df):
+        assert stats.down_capture(sample_df, benchmark_df) > 0
+
+    def test_self_returns_one(self, sample_df):
+        assert abs(stats.down_capture(sample_df, sample_df) - 1.0) < 1e-10
+
+
+class TestPandasInputRiskAdjusted:
+    def test_omega_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.omega_ratio(sample_pandas_df), float)
+
+    def test_ulcer_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.ulcer_index(sample_pandas_df), float)
+
+    def test_martin_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.martin_ratio(sample_pandas_df), float)
+
+    def test_kelly_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.kelly_criterion(sample_pandas_df), float)
+
+    def test_payoff_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.payoff_ratio(sample_pandas_df), float)
+
+    def test_probabilistic_sharpe_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.probabilistic_sharpe(sample_pandas_df), float)
+
+    def test_benchmark_metrics_accept_pandas(
+        self,
+        sample_pandas_df,
+        benchmark_pandas_df,
+    ):
+        assert isinstance(
+            stats.treynor_ratio(sample_pandas_df, benchmark_pandas_df), float
+        )
+        assert isinstance(stats.r_squared(sample_pandas_df, benchmark_pandas_df), float)
+        assert isinstance(
+            stats.up_capture(sample_pandas_df, benchmark_pandas_df), float
+        )
+        assert isinstance(
+            stats.down_capture(sample_pandas_df, benchmark_pandas_df), float
+        )
+
+    def test_gain_to_pain_accepts_pandas(self, sample_pandas_df):
+        assert isinstance(stats.gain_to_pain(sample_pandas_df), float)
