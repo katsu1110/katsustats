@@ -56,7 +56,9 @@ CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and
 - Purely functional — no OOP
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
 
-## Slash Commands (Claude Code)
+## Agent Skills (GitHub Copilot)
 
-- `/publish` — cut a new PyPI release (bumps version, commits, creates GitHub release that triggers the publish workflow)
-- `/code-simplify` — refactor recently changed code for clarity and consistency without changing behavior
+Skills are located in `.github/skills/`.
+- `publish` — Publish a new katsustats release to PyPI.
+- `code-simplify` — Refactor recently changed code for clarity, consistency, and maintainability.
+- `make-skill-template` — Create new GitHub Copilot agent skills for this repository.
