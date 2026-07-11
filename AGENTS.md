@@ -10,14 +10,6 @@ This file provides instructions and context for AI agents working on the `katsus
   - `CLAUDE.md`: Tech stack, architecture, and development workflows.
   - `CONTRIBUTING.md`: Contribution guidelines.
 
-## Tech Stack
-- **Language**: Python 3.9+ (Current environment: 3.13)
-- **Data Engine**: Polars (primary), supports pandas input.
-- **Plots**: Matplotlib.
-- **Package Manager**: `uv`.
-- **Linting/Formatting**: `ruff`.
-- **Testing**: `pytest`.
-
 ## Core Principles & Architecture
 - **Functional Design**: Purely functional approach in `src/katsustats/`. Avoid classes unless absolutely necessary for internal typing.
 - **Data Normalization**: All public functions expect `date` and `returns` columns. Use `src/katsustats/_dataframe.py:ensure_polars()` to handle varied inputs (pandas, Series, etc.).
