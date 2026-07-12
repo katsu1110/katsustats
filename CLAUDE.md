@@ -9,9 +9,10 @@ katsustats is a Python library and CLI for generating backtest reports from fina
 Functional design in `src/katsustats/`:
 
 - `stats.py` — Pure metric computation (Sharpe, CAGR, drawdowns, etc.)
-- `plots.py` — Matplotlib chart generation (13 chart types)
+- `plots.py` — Matplotlib chart generation (17 chart types)
 - `reports.py` — Orchestration: `full()` for dict output, `html()` for self-contained HTML, `json()` for structured JSON, `markdown()` for Markdown tables
 - `_dataframe.py` — Input normalisation: `ensure_polars()` converts pandas DataFrames, pandas Series (with DatetimeIndex), and Polars DataFrames to the canonical `["date", "returns"]` Polars frame
+- `_constants.py` — Shared numeric constants (trading days per year, etc.) used across stats and plots
 - `__main__.py` — CLI entry point (`katsustats report`); reads CSV/Parquet and dispatches to `reports.html()`, `reports.json()`, or `reports.markdown()` via `--format`
 
 No classes. All public functions accept a Polars DataFrame, pandas DataFrame, or pandas Series with `date` and `returns` data.
@@ -38,7 +39,7 @@ uv build
 ```bash
 uv run ruff check src/ tests/          # lint
 uv run ruff format --check src/ tests/ # format check
-uv run pytest tests/ -v                # tests across stats/plots/reports/cli
+uv run pytest tests/ -v                # tests across stats/plots/reports/dataframe/cli
 ```
 
 CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and ruff checks must pass before merging.
