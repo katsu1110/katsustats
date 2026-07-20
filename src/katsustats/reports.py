@@ -768,7 +768,10 @@ _HTML_TEMPLATE = """\
   <!-- Hero: Cumulative Returns (full-width) -->
   {hero_chart}
 
-  <!-- Key Performance: Metrics table (left) | Period + Yearly + Drawdown (right) -->
+  <!-- Hero: Drawdown (full-width) -->
+  {hero_drawdown}
+
+  <!-- Key Performance: Metrics table (left) | Period + Interval Charts (right) -->
   {key_performance_block}
 
   <!-- Top Drawdowns (full-width) -->
@@ -1309,6 +1312,15 @@ def _build_html(
         f"</div>"
     )
 
+    hero_drawdown_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(12, 4)))
+    hero_drawdown = (
+        f'<div class="section">'
+        f"<h2>Drawdown</h2>"
+        f'<img class="chart-img" src="data:image/png;base64,{hero_drawdown_b64}" '
+        f'alt="Drawdown"/>'
+        f"</div>"
+    )
+
     # ── Top Drawdowns (full-width) ───────────────────────────────────
     dd_df = stats.drawdown_details(returns)
     if dd_df.height > 0:
@@ -1326,9 +1338,9 @@ def _build_html(
     yearly_b64 = _fig_to_base64(
         plots.plot_yearly_returns(returns, benchmark, figsize=(8, 4))
     )
-    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(8, 4)))
-    dd_periods_b64 = _fig_to_base64(
-        plots.plot_drawdown_periods(returns, figsize=(8, 4))
+    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 4)))
+    dist_b64 = _fig_to_base64(
+        plots.plot_return_distribution(returns, benchmark, figsize=(8, 4))
     )
 
     key_performance_block = (
@@ -1343,10 +1355,10 @@ def _build_html(
         f'<div><h3 class="section-sub-heading">Period Performance</h3>{period_html}</div>'
         f'<div><img class="chart-img" src="data:image/png;base64,{yearly_b64}"'
         f' alt="Yearly Returns"/></div>'
-        f'<div><img class="chart-img" src="data:image/png;base64,{dd_compact_b64}"'
-        f' alt="Drawdown"/></div>'
-        f'<div><img class="chart-img" src="data:image/png;base64,{dd_periods_b64}"'
-        f' alt="Drawdown Periods"/></div>'
+        f'<div><img class="chart-img" src="data:image/png;base64,{heatmap_b64}"'
+        f' alt="Monthly Returns Heatmap"/></div>'
+        f'<div><img class="chart-img" src="data:image/png;base64,{dist_b64}"'
+        f' alt="Daily Return Distribution"/></div>'
         f"</div>"
         f"</div>"
         f"</div>"
@@ -1362,10 +1374,6 @@ def _build_html(
             f"</div>"
         )
 
-    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 4)))
-    dist_b64 = _fig_to_base64(
-        plots.plot_return_distribution(returns, benchmark, figsize=(8, 4))
-    )
     sharpe_b64 = _fig_to_base64(
         plots.plot_rolling_sharpe(returns, benchmark, figsize=(8, 4))
     )
@@ -1381,8 +1389,6 @@ def _build_html(
     dow_win_b64 = _fig_to_base64(plots.plot_dow_winrate(returns, figsize=(8, 4)))
 
     grid_items = [
-        _grid_section("Monthly Returns Heatmap", heatmap_b64),
-        _grid_section("Daily Return Distribution", dist_b64),
         _grid_section("Rolling Sharpe", sharpe_b64),
         _grid_section("Rolling Sortino", sortino_b64),
         _grid_section("Rolling Volatility", vol_b64),
@@ -1508,6 +1514,7 @@ def _build_html(
         n_days=n_days,
         highlight_cards=highlight_cards,
         hero_chart=hero_chart,
+        hero_drawdown=hero_drawdown,
         key_performance_block=key_performance_block,
         top_drawdowns_section=top_drawdowns_section,
         charts_grid_block=charts_grid_block,
