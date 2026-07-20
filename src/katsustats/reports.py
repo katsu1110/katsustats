@@ -1297,8 +1297,6 @@ def _build_html(
             f"</div>"
         )
     highlight_cards = "\n    ".join(cards)
-
-    # ── Hero chart: Cumulative Returns (full-width) ─────────────────
     hero_b64 = _fig_to_base64(
         plots.plot_cumulative_returns(returns, benchmark, figsize=(12, 5))
     )
@@ -1325,11 +1323,11 @@ def _build_html(
     period_html = _df_to_html_table(period_df)
 
     yearly_b64 = _fig_to_base64(
-        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 3))
+        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 4))
     )
-    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(8, 3)))
+    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(8, 4)))
     dd_periods_b64 = _fig_to_base64(
-        plots.plot_drawdown_periods(returns, figsize=(8, 3))
+        plots.plot_drawdown_periods(returns, figsize=(8, 4))
     )
 
     key_performance_block = (
