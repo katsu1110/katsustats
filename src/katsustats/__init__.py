@@ -1,5 +1,4 @@
-"""
-katsustats — A modernized backtest report module powered by Polars.
+"""katsustats — A modernized backtest report module powered by Polars.
 
 Usage:
     import katsustats
@@ -109,7 +108,7 @@ from .stats import (
     worst_year,
 )
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     # submodules
