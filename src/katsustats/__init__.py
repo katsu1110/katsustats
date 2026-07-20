@@ -19,7 +19,8 @@ from . import plots, reports, stats  # noqa: F401
 # plots
 from .plots import (
     plot_cumulative_returns,
-    plot_dow_returns,
+    plot_dow_distribution,
+    plot_dow_winrate,
     plot_drawdown,
     plot_drawdown_periods,
     plot_eoy_returns,
@@ -180,7 +181,8 @@ __all__ = [
     "worst_year",
     # plots
     "plot_cumulative_returns",
-    "plot_dow_returns",
+    "plot_dow_distribution",
+    "plot_dow_winrate",
     "plot_drawdown",
     "plot_drawdown_periods",
     "plot_eoy_returns",

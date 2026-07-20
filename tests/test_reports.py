@@ -57,7 +57,7 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         figs = result["figures"]
         assert isinstance(figs, dict)
-        assert len(figs) == 9
+        assert len(figs) == 10
         for fig in figs.values():
             assert isinstance(fig, matplotlib.figure.Figure)
 

@@ -367,7 +367,8 @@ katsustats.plots.plot_yearly_returns(returns, benchmark)
 katsustats.plots.plot_return_distribution(returns, benchmark)
 katsustats.plots.plot_rolling_sharpe(returns, benchmark)
 katsustats.plots.plot_rolling_volatility(returns, benchmark)
-katsustats.plots.plot_dow_returns(returns)
+katsustats.plots.plot_dow_distribution(returns)
+katsustats.plots.plot_dow_winrate(returns)
 ```
 
 ## Metrics produced

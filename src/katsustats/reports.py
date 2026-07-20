@@ -900,7 +900,8 @@ def full(
             "rolling_correlation",
             plots.plot_rolling_correlation(returns, benchmark, figsize=figsize_small),
         )
-    _handle_fig("dow_returns", plots.plot_dow_returns(returns))
+    _handle_fig("dow_distribution", plots.plot_dow_distribution(returns))
+    _handle_fig("dow_winrate", plots.plot_dow_winrate(returns))
 
     mc_summary = None
     if monte_carlo:
@@ -1376,7 +1377,8 @@ def _build_html(
     )
     dow_df = stats.day_of_week_stats(returns)
     dow_table_html = _df_to_html_table(dow_df)
-    dow_chart_b64 = _fig_to_base64(plots.plot_dow_returns(returns, figsize=(8, 4)))
+    dow_dist_b64 = _fig_to_base64(plots.plot_dow_distribution(returns, figsize=(8, 4)))
+    dow_win_b64 = _fig_to_base64(plots.plot_dow_winrate(returns, figsize=(8, 4)))
 
     grid_items = [
         _grid_section("Monthly Returns Heatmap", heatmap_b64),
@@ -1397,7 +1399,8 @@ def _build_html(
     grid_items.extend(
         [
             f'<div class="section"><h2>Day-of-Week Statistics</h2>{dow_table_html}</div>',
-            _grid_section("Day-of-Week Analysis", dow_chart_b64),
+            _grid_section("Return Distribution by Day", dow_dist_b64),
+            _grid_section("Win Rate & Total Return by Day", dow_win_b64),
         ]
     )
     charts_grid_block = f'<div class="charts-grid">{"".join(grid_items)}</div>'
