@@ -1336,11 +1336,11 @@ def _build_html(
     period_html = _df_to_html_table(period_df)
 
     yearly_b64 = _fig_to_base64(
-        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 4))
+        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 5))
     )
-    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 4)))
+    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 5)))
     dist_b64 = _fig_to_base64(
-        plots.plot_return_distribution(returns, benchmark, figsize=(8, 4))
+        plots.plot_return_distribution(returns, benchmark, figsize=(8, 5))
     )
 
     key_performance_block = (
