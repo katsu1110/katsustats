@@ -92,7 +92,6 @@ def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
         buf,
         format="png",
         dpi=dpi,
-        bbox_inches="tight",
         facecolor="white",
         edgecolor="none",
     )
@@ -557,6 +556,7 @@ _HTML_TEMPLATE = """\
     --accent2: #0d9488;
     --positive: #2e7d32;
     --negative: #c62828;
+    --space-section: 32px;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -572,7 +572,7 @@ _HTML_TEMPLATE = """\
   .header {{
     border-bottom: 1px solid var(--border);
     padding-bottom: 24px;
-    margin-bottom: 32px;
+    margin-bottom: var(--space-section);
   }}
   .header h1 {{
     font-size: 28px;
@@ -600,7 +600,7 @@ _HTML_TEMPLATE = """\
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
-    margin-bottom: 32px;
+    margin-bottom: var(--space-section);
   }}
   .highlight-card {{
     background: var(--surface);
@@ -624,7 +624,7 @@ _HTML_TEMPLATE = """\
 
   /* Section */
   .section {{
-    margin-bottom: 36px;
+    margin-bottom: var(--space-section);
   }}
   .section h2 {{
     font-size: 18px;
@@ -653,7 +653,7 @@ _HTML_TEMPLATE = """\
   }}
   table.metrics th {{
     text-align: left;
-    padding: 10px 14px;
+    padding: 6px 14px;
     background: var(--surface2);
     color: var(--text2);
     font-weight: 600;
@@ -663,7 +663,7 @@ _HTML_TEMPLATE = """\
     border-bottom: 1px solid var(--border);
   }}
   table.metrics td {{
-    padding: 9px 14px;
+    padding: 5px 14px;
     border-bottom: 1px solid var(--border);
     color: var(--text);
   }}
@@ -673,6 +673,17 @@ _HTML_TEMPLATE = """\
   table.metrics td:first-child {{
     color: var(--text2);
     font-weight: 500;
+  }}
+  table.metrics tr.metric-group td {{
+    background: var(--surface2);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-top: 12px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
   }}
 
   /* Charts */
@@ -687,7 +698,12 @@ _HTML_TEMPLATE = """\
     display: grid;
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
     gap: 24px;
-    align-items: start;
+    align-items: stretch;
+  }}
+
+  .grid-keyperf > div:first-child {{
+    display: flex;
+    flex-direction: column;
   }}
 
   /* Stacked items in right column */
@@ -700,15 +716,14 @@ _HTML_TEMPLATE = """\
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 24px;
-    margin-bottom: 36px;
+    margin-bottom: var(--space-section);
   }}
   .charts-grid .section {{
     margin-bottom: 0;
   }}
 
-  /* Footer */
   .footer {{
-    margin-top: 40px;
+    margin-top: var(--space-section);
     padding-top: 16px;
     border-top: 1px solid var(--border);
     font-size: 12px;
@@ -723,6 +738,14 @@ _HTML_TEMPLATE = """\
   @media (max-width: 900px) {{
     .grid-keyperf, .charts-grid {{ grid-template-columns: 1fr; }}
     body {{ padding: 20px 16px; }}
+  }}
+
+  @media print {{
+    body {{ background: white; padding: 0; }}
+    .section, .highlight-card, .charts-grid .section {{
+      page-break-inside: avoid;
+    }}
+    * {{ -webkit-print-color-adjust: exact; color-adjust: exact; }}
   }}
 </style>
 </head>
@@ -746,13 +769,17 @@ _HTML_TEMPLATE = """\
   <!-- Hero: Cumulative Returns (full-width) -->
   {hero_chart}
 
-  <!-- Key Performance: Metrics table (left) | Period + Yearly + Drawdown (right) -->
+  <!-- Hero: Drawdown (full-width) -->
+  {hero_drawdown}
+
+  <!-- Key Performance: Metrics table (left) | Period + Interval Charts (right) -->
   {key_performance_block}
 
   <!-- Top Drawdowns (full-width) -->
   {top_drawdowns_section}
 
   <!-- Charts Grid: paired two-column layout -->
+
   {charts_grid_block}
 
   <!-- Monte Carlo Analysis (full-width) -->
@@ -877,7 +904,8 @@ def full(
             "rolling_correlation",
             plots.plot_rolling_correlation(returns, benchmark, figsize=figsize_small),
         )
-    _handle_fig("dow_returns", plots.plot_dow_returns(returns))
+    _handle_fig("dow_distribution", plots.plot_dow_distribution(returns))
+    _handle_fig("dow_winrate", plots.plot_dow_winrate(returns))
 
     mc_summary = None
     if monte_carlo:
@@ -1126,6 +1154,99 @@ def markdown(
     return rendered
 
 
+_METRIC_GROUPS = {
+    "Return & Risk": [
+        "Total Return",
+        "CAGR",
+        "Max Drawdown",
+        "Volatility (ann.)",
+    ],
+    "Risk-Adjusted": [
+        "Sharpe Ratio",
+        "Sortino Ratio",
+        "Calmar Ratio",
+        "Omega Ratio",
+        "Martin Ratio",
+        "Gain-to-Pain Ratio",
+        "Kelly Criterion",
+        "Probabilistic Sharpe",
+        "Payoff Ratio",
+    ],
+    "Trade Distribution": [
+        "Win Rate",
+        "Profit Factor",
+        "Best Day",
+        "Worst Day",
+        "Avg Win",
+        "Avg Loss",
+        "Best Month",
+        "Worst Month",
+        "Best Year",
+        "Worst Year",
+        "Positive Months",
+        "Positive Years",
+    ],
+    "Tail Risk & VaR": [
+        "Daily VaR (95%)",
+        "CVaR (95%)",
+        "Recovery Factor",
+        "Skewness",
+        "Kurtosis",
+        "Ulcer Index",
+    ],
+    "Benchmark Relative": [
+        "Alpha",
+        "Beta",
+        "Correlation",
+        "Information Ratio",
+        "Excess Return",
+        "Treynor Ratio",
+        "R-Squared",
+        "Up Capture",
+        "Down Capture",
+    ],
+}
+
+
+def _grouped_metrics_to_html_table(
+    df: pl.DataFrame, *, css_class: str = "metrics"
+) -> str:
+    """Convert a metrics DataFrame to a grouped HTML <table> string."""
+    cols = df.columns
+    data = df.to_dict(as_series=False)
+    n_rows = len(data[cols[0]])
+
+    # Map metrics to their row index
+    metric_to_idx = {data["metric"][i]: i for i in range(n_rows)}
+
+    rows_html: list[str] = []
+    header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
+    rows_html.append(f"<tr>{header_cells}</tr>")
+
+    colspan = len(cols)
+
+    for group_name, metric_names in _METRIC_GROUPS.items():
+        # Filter to metrics that actually exist in the dataframe
+        valid_metrics = [m for m in metric_names if m in metric_to_idx]
+        if not valid_metrics:
+            continue
+
+        # Add group header
+        rows_html.append(
+            f'<tr class="metric-group"><td colspan="{colspan}">{_html.escape(group_name)}</td></tr>'
+        )
+
+        for m in valid_metrics:
+            idx = metric_to_idx[m]
+            cells = "".join(
+                f"<td>{_html.escape(_format_cell(col, data[col][idx]))}</td>"
+                for col in cols
+            )
+            rows_html.append(f"<tr>{cells}</tr>")
+
+    return f'<table class="{css_class}">{"".join(rows_html)}</table>'
+
+
 def _build_html(
     returns: DataFrameLike,
     benchmark: DataFrameLike | None,
@@ -1154,7 +1275,7 @@ def _build_html(
     # ── Metrics ─────────────────────────────────────────────────────
     summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
     metrics_df = stats.summary_metrics(returns, benchmark, rf, periods)
-    metrics_table = _df_to_html_table(metrics_df)
+    metrics_table = _grouped_metrics_to_html_table(metrics_df)
 
     # ── Headline cards ──────────────────────────────────────────────
     highlight_defs = [
@@ -1181,8 +1302,6 @@ def _build_html(
             f"</div>"
         )
     highlight_cards = "\n    ".join(cards)
-
-    # ── Hero chart: Cumulative Returns (full-width) ─────────────────
     hero_b64 = _fig_to_base64(
         plots.plot_cumulative_returns(returns, benchmark, figsize=(12, 5))
     )
@@ -1194,17 +1313,35 @@ def _build_html(
         f"</div>"
     )
 
-    # ── Key Performance block (2-column) ────────────────────────────
-    # Left: summary metrics table  |  Right: period table + compact charts
+    hero_drawdown_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(12, 4)))
+    hero_drawdown = (
+        f'<div class="section">'
+        f"<h2>Drawdown</h2>"
+        f'<img class="chart-img" src="data:image/png;base64,{hero_drawdown_b64}" '
+        f'alt="Drawdown"/>'
+        f"</div>"
+    )
+
+    # ── Top Drawdowns (full-width) ───────────────────────────────────
+    dd_df = stats.drawdown_details(returns)
+    if dd_df.height > 0:
+        dd_table = _df_to_html_table(dd_df)
+        top_drawdowns_section = (
+            f'<div class="section"><h2>Top Drawdowns</h2>{dd_table}</div>'
+        )
+    else:
+        top_drawdowns_section = ""
+
+    # ── Key Performance block tables ──────────────────────────────────
     period_df = stats.period_performance(returns, benchmark)
     period_html = _df_to_html_table(period_df)
 
     yearly_b64 = _fig_to_base64(
-        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 3))
+        plots.plot_yearly_returns(returns, benchmark, figsize=(8, 5))
     )
-    dd_compact_b64 = _fig_to_base64(plots.plot_drawdown(returns, figsize=(8, 3)))
-    dd_periods_b64 = _fig_to_base64(
-        plots.plot_drawdown_periods(returns, figsize=(8, 3))
+    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 5)))
+    dist_b64 = _fig_to_base64(
+        plots.plot_return_distribution(returns, benchmark, figsize=(8, 5))
     )
 
     key_performance_block = (
@@ -1219,26 +1356,17 @@ def _build_html(
         f'<div><h3 class="section-sub-heading">Period Performance</h3>{period_html}</div>'
         f'<div><img class="chart-img" src="data:image/png;base64,{yearly_b64}"'
         f' alt="Yearly Returns"/></div>'
-        f'<div><img class="chart-img" src="data:image/png;base64,{dd_compact_b64}"'
-        f' alt="Drawdown"/></div>'
-        f'<div><img class="chart-img" src="data:image/png;base64,{dd_periods_b64}"'
-        f' alt="Drawdown Periods"/></div>'
+        f'<div><img class="chart-img" src="data:image/png;base64,{heatmap_b64}"'
+        f' alt="Monthly Returns Heatmap"/></div>'
+        f'<div><img class="chart-img" src="data:image/png;base64,{dist_b64}"'
+        f' alt="Daily Return Distribution"/></div>'
         f"</div>"
         f"</div>"
         f"</div>"
     )
 
-    # ── Top Drawdowns (full-width) ───────────────────────────────────
-    dd_df = stats.drawdown_details(returns)
-    if dd_df.height > 0:
-        dd_table = _df_to_html_table(dd_df)
-        top_drawdowns_section = (
-            f'<div class="section"><h2>Top Drawdowns</h2>{dd_table}</div>'
-        )
-    else:
-        top_drawdowns_section = ""
-
     # ── Charts grid (2-column pairs) ────────────────────────────────
+
     def _grid_section(heading: str, b64: str) -> str:
         return (
             f'<div class="section">'
@@ -1247,10 +1375,6 @@ def _build_html(
             f"</div>"
         )
 
-    heatmap_b64 = _fig_to_base64(plots.plot_monthly_heatmap(returns, figsize=(8, 4)))
-    dist_b64 = _fig_to_base64(
-        plots.plot_return_distribution(returns, benchmark, figsize=(8, 4))
-    )
     sharpe_b64 = _fig_to_base64(
         plots.plot_rolling_sharpe(returns, benchmark, figsize=(8, 4))
     )
@@ -1262,11 +1386,10 @@ def _build_html(
     )
     dow_df = stats.day_of_week_stats(returns)
     dow_table_html = _df_to_html_table(dow_df)
-    dow_chart_b64 = _fig_to_base64(plots.plot_dow_returns(returns, figsize=(8, 4)))
+    dow_dist_b64 = _fig_to_base64(plots.plot_dow_distribution(returns, figsize=(8, 4)))
+    dow_win_b64 = _fig_to_base64(plots.plot_dow_winrate(returns, figsize=(8, 4)))
 
     grid_items = [
-        _grid_section("Monthly Returns Heatmap", heatmap_b64),
-        _grid_section("Daily Return Distribution", dist_b64),
         _grid_section("Rolling Sharpe", sharpe_b64),
         _grid_section("Rolling Sortino", sortino_b64),
         _grid_section("Rolling Volatility", vol_b64),
@@ -1283,7 +1406,8 @@ def _build_html(
     grid_items.extend(
         [
             f'<div class="section"><h2>Day-of-Week Statistics</h2>{dow_table_html}</div>',
-            _grid_section("Day-of-Week Analysis", dow_chart_b64),
+            _grid_section("Return Distribution by Day", dow_dist_b64),
+            _grid_section("Win Rate & Total Return by Day", dow_win_b64),
         ]
     )
     charts_grid_block = f'<div class="charts-grid">{"".join(grid_items)}</div>'
@@ -1391,6 +1515,7 @@ def _build_html(
         n_days=n_days,
         highlight_cards=highlight_cards,
         hero_chart=hero_chart,
+        hero_drawdown=hero_drawdown,
         key_performance_block=key_performance_block,
         top_drawdowns_section=top_drawdowns_section,
         charts_grid_block=charts_grid_block,

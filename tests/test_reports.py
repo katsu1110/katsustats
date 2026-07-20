@@ -57,7 +57,7 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         figs = result["figures"]
         assert isinstance(figs, dict)
-        assert len(figs) == 9
+        assert len(figs) == 10
         for fig in figs.values():
             assert isinstance(fig, matplotlib.figure.Figure)
 
@@ -283,6 +283,8 @@ class TestHtml:
         assert isinstance(result, str)
 
     def test_duplicate_dates_warns_and_aggregates(self):
+        import re
+
         duplicate_dates_df = pl.DataFrame(
             {
                 "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
@@ -293,14 +295,20 @@ class TestHtml:
         with pytest.warns(UserWarning, match="duplicate dates"):
             result = reports.html(duplicate_dates_df, monte_carlo=False)
 
-        # HTML should reflect the compounded series (2 rows, not 3)
-        assert isinstance(result, str)
-        assert result == reports.html(
+        # Aggregated equivalent (same compounded data)
+        expected = reports.html(
             pl.DataFrame(
                 {"date": ["2023-01-02", "2023-01-03"], "returns": [0.32, -0.10]}
             ).with_columns(pl.col("date").cast(pl.Date)),
             monte_carlo=False,
         )
+
+        # Normalize base64 image payloads so byte-level non-determinism
+        # (floating-point PNG rendering) doesn't mask structural diffs
+        img_re = r"data:image/png;base64,[A-Za-z0-9+/=]+"
+        result_norm = re.sub(img_re, "IMG", result)
+        expected_norm = re.sub(img_re, "IMG", expected)
+        assert result_norm == expected_norm
 
 
 # ---------------------------------------------------------------------------

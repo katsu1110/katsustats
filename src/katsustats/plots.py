@@ -852,21 +852,19 @@ def plot_returns_vs_benchmark(
 # ---------------------------------------------------------------------------
 
 
-def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
-    """Day-of-week return distribution (box plot), win rate, and total return overlay."""
+def plot_dow_distribution(df: DataFrameLike, figsize: tuple = (8, 4)) -> Figure:
+    """Day-of-week return distribution (box plot)."""
     df = ensure_polars(df)
     dow_df = stats.day_of_week_stats(df)
 
     names = dow_df.get_column("dow_name").to_list()
     dow_order = dow_df.get_column("dow").to_list()
     box_data = _returns_by_day_of_week(df, dow_order)
-    win_rates = dow_df.get_column("win_rate").to_numpy()
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
 
-    # --- Return Distribution ---
-    _apply_style(ax1, fig)
-    bp = ax1.boxplot(
+    bp = ax.boxplot(
         box_data,
         tick_labels=names,
         patch_artist=True,
@@ -883,17 +881,26 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
         ),
     )
     _color_boxplot_by_median(bp)
-    ax1.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
-    ax1.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    ax1.set_title(
-        "Return Distribution by Day",
-        fontweight="bold",
-        fontsize=11,
-        color=_COLORS["text"],
-    )
+    ax.axhline(0, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
 
-    _apply_style(ax2, fig)
-    bars2 = ax2.bar(
+    fig.set_facecolor("white")
+    fig.tight_layout()
+    return fig
+
+
+def plot_dow_winrate(df: DataFrameLike, figsize: tuple = (8, 4)) -> Figure:
+    """Day-of-week win rate and total return overlay."""
+    df = ensure_polars(df)
+    dow_df = stats.day_of_week_stats(df)
+
+    names = dow_df.get_column("dow_name").to_list()
+    win_rates = dow_df.get_column("win_rate").to_numpy()
+
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+
+    bars = ax.bar(
         names,
         win_rates,
         color=_COLORS["strategy"],
@@ -902,18 +909,12 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
         linewidth=0.5,
         label="Win Rate",
     )
-    ax2.axhline(0.5, color=_COLORS["neutral"], lw=0.8, ls="--")
-    ax2.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
-    ax2.set_ylim(0, 1.1)
-    ax2.set_title(
-        "Win Rate & Total Return by Day",
-        fontweight="bold",
-        fontsize=11,
-        color=_COLORS["text"],
-    )
+    ax.axhline(0.5, color=_COLORS["neutral"], lw=0.8, ls="--")
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.set_ylim(0, 1.1)
 
-    for bar, val in zip(bars2, win_rates):
-        ax2.text(
+    for bar, val in zip(bars, win_rates):
+        ax.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.02,
             f"{val:.1%}",
@@ -924,7 +925,7 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
         )
 
     total_returns = dow_df.get_column("total_return").to_numpy()
-    ax2r = ax2.twinx()
+    ax2r = ax.twinx()
     ax2r.plot(
         names,
         total_returns,
@@ -943,9 +944,9 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     for spine in ("top", "left", "bottom"):
         ax2r.spines[spine].set_visible(False)
 
-    lines1, labels1 = ax2.get_legend_handles_labels()
+    lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2r.get_legend_handles_labels()
-    ax2.legend(
+    ax.legend(
         lines1 + lines2,
         labels1 + labels2,
         loc="upper right",
@@ -954,13 +955,6 @@ def plot_dow_returns(df: DataFrameLike, figsize: tuple = (10, 5)) -> Figure:
     )
 
     fig.set_facecolor("white")
-    fig.suptitle(
-        "Day-of-Week Analysis",
-        fontweight="bold",
-        fontsize=13,
-        color=_COLORS["text"],
-        y=1.02,
-    )
     fig.tight_layout()
     return fig
 

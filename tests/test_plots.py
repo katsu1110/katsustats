@@ -356,17 +356,17 @@ class TestPlotDrawdownPeriods:
 
 
 # ---------------------------------------------------------------------------
-# plot_dow_returns
+# plot_dow_distribution / plot_dow_winrate
 # ---------------------------------------------------------------------------
 
 
-class TestPlotDowReturns:
+class TestPlotDowDistribution:
     def test_returns_figure(self, sample_df):
-        fig = plots.plot_dow_returns(sample_df)
+        fig = plots.plot_dow_distribution(sample_df)
         assert isinstance(fig, Figure)
 
     def test_custom_figsize(self, sample_df):
-        fig = plots.plot_dow_returns(sample_df, figsize=(8, 4))
+        fig = plots.plot_dow_distribution(sample_df, figsize=(8, 4))
         assert isinstance(fig, Figure)
 
     def test_box_colors_reflect_median_sign(self):
@@ -379,7 +379,7 @@ class TestPlotDowReturns:
         df = pl.DataFrame({"date": dates, "returns": returns}).with_columns(
             pl.col("date").cast(pl.Date)
         )
-        fig = plots.plot_dow_returns(df)
+        fig = plots.plot_dow_distribution(df)
         ax = fig.axes[0]
         boxes = [p for p in ax.patches if hasattr(p, "get_facecolor")]
         colors = [mcolors.to_hex(p.get_facecolor()[:3]) for p in boxes]
@@ -393,21 +393,6 @@ class TestPlotDowReturns:
         assert colors[3] == neg
         assert colors[4] == neg
 
-    def test_twin_axis_present(self, sample_df):
-        """Win-rate panel has a secondary y-axis for the total return overlay."""
-        fig = plots.plot_dow_returns(sample_df)
-        assert len(fig.axes) == 3  # box ax, win-rate ax, twin ax
-
-    def test_legend_contains_both_series(self, sample_df):
-        """Legend on the win-rate panel labels both Win Rate and Total Return."""
-        fig = plots.plot_dow_returns(sample_df)
-        win_rate_ax = fig.axes[1]
-        legend = win_rate_ax.get_legend()
-        assert legend is not None
-        labels = [t.get_text() for t in legend.get_texts()]
-        assert "Win Rate" in labels
-        assert "Total Return" in labels
-
     def test_weekends_shown_when_present(self):
         """Boxes for Sat/Sun appear when the data includes weekend dates."""
         dates = [
@@ -419,11 +404,36 @@ class TestPlotDowReturns:
         df = pl.DataFrame(
             {"date": dates, "returns": [0.01, -0.01, 0.02, -0.02]}
         ).with_columns(pl.col("date").cast(pl.Date))
-        fig = plots.plot_dow_returns(df)
+        fig = plots.plot_dow_distribution(df)
         ax = fig.axes[0]
         bar_labels = [tick.get_text() for tick in ax.get_xticklabels()]
         assert "Sat" in bar_labels
         assert "Sun" in bar_labels
+
+
+class TestPlotDowWinrate:
+    def test_returns_figure(self, sample_df):
+        fig = plots.plot_dow_winrate(sample_df)
+        assert isinstance(fig, Figure)
+
+    def test_custom_figsize(self, sample_df):
+        fig = plots.plot_dow_winrate(sample_df, figsize=(8, 4))
+        assert isinstance(fig, Figure)
+
+    def test_twin_axis_present(self, sample_df):
+        """Win-rate panel has a secondary y-axis for the total return overlay."""
+        fig = plots.plot_dow_winrate(sample_df)
+        assert len(fig.axes) == 2  # bar ax, twin ax
+
+    def test_legend_contains_both_series(self, sample_df):
+        """Legend on the win-rate panel labels both Win Rate and Total Return."""
+        fig = plots.plot_dow_winrate(sample_df)
+        win_rate_ax = fig.axes[0]
+        legend = win_rate_ax.get_legend()
+        assert legend is not None
+        labels = [t.get_text() for t in legend.get_texts()]
+        assert "Win Rate" in labels
+        assert "Total Return" in labels
 
 
 # ---------------------------------------------------------------------------
