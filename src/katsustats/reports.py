@@ -92,7 +92,6 @@ def _fig_to_base64(fig: plt.Figure, dpi: int = 150) -> str:
         buf,
         format="png",
         dpi=dpi,
-        bbox_inches="tight",
         facecolor="white",
         edgecolor="none",
     )
@@ -557,6 +556,7 @@ _HTML_TEMPLATE = """\
     --accent2: #0d9488;
     --positive: #2e7d32;
     --negative: #c62828;
+    --space-section: 32px;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -572,7 +572,7 @@ _HTML_TEMPLATE = """\
   .header {{
     border-bottom: 1px solid var(--border);
     padding-bottom: 24px;
-    margin-bottom: 32px;
+    margin-bottom: var(--space-section);
   }}
   .header h1 {{
     font-size: 28px;
@@ -600,7 +600,7 @@ _HTML_TEMPLATE = """\
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
-    margin-bottom: 32px;
+    margin-bottom: var(--space-section);
   }}
   .highlight-card {{
     background: var(--surface);
@@ -624,7 +624,7 @@ _HTML_TEMPLATE = """\
 
   /* Section */
   .section {{
-    margin-bottom: 36px;
+    margin-bottom: var(--space-section);
   }}
   .section h2 {{
     font-size: 18px;
@@ -687,7 +687,12 @@ _HTML_TEMPLATE = """\
     display: grid;
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
     gap: 24px;
-    align-items: start;
+    align-items: stretch;
+  }}
+
+  .grid-keyperf > div:first-child {{
+    display: flex;
+    flex-direction: column;
   }}
 
   /* Stacked items in right column */
@@ -699,16 +704,14 @@ _HTML_TEMPLATE = """\
   .charts-grid {{
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 24px;
-    margin-bottom: 36px;
+    margin-bottom: var(--space-section);
   }}
   .charts-grid .section {{
     margin-bottom: 0;
   }}
 
-  /* Footer */
   .footer {{
-    margin-top: 40px;
+    margin-top: var(--space-section);
     padding-top: 16px;
     border-top: 1px solid var(--border);
     font-size: 12px;
@@ -749,10 +752,8 @@ _HTML_TEMPLATE = """\
   <!-- Key Performance: Metrics table (left) | Period + Yearly + Drawdown (right) -->
   {key_performance_block}
 
-  <!-- Top Drawdowns (full-width) -->
-  {top_drawdowns_section}
-
   <!-- Charts Grid: paired two-column layout -->
+
   {charts_grid_block}
 
   <!-- Monte Carlo Analysis (full-width) -->
@@ -1194,8 +1195,17 @@ def _build_html(
         f"</div>"
     )
 
-    # ── Key Performance block (2-column) ────────────────────────────
-    # Left: summary metrics table  |  Right: period table + compact charts
+    # ── Top Drawdowns (for injection into Key Performance left column) ──
+    dd_df = stats.drawdown_details(returns)
+    if dd_df.height > 0:
+        dd_table = _df_to_html_table(dd_df)
+        top_drawdowns_html = (
+            f'<h3 class="section-sub-heading">Top Drawdowns</h3>{dd_table}'
+        )
+    else:
+        top_drawdowns_html = ""
+
+    # ── Key Performance block tables ──────────────────────────────────
     period_df = stats.period_performance(returns, benchmark)
     period_html = _df_to_html_table(period_df)
 
@@ -1214,6 +1224,7 @@ def _build_html(
         f"<div>"
         f'<h3 class="section-sub-heading">Performance Metrics</h3>'
         f"{metrics_table}"
+        f'<div style="margin-top:16px">{top_drawdowns_html}</div>'
         f"</div>"
         f'<div class="stack">'
         f'<div><h3 class="section-sub-heading">Period Performance</h3>{period_html}</div>'
@@ -1228,17 +1239,8 @@ def _build_html(
         f"</div>"
     )
 
-    # ── Top Drawdowns (full-width) ───────────────────────────────────
-    dd_df = stats.drawdown_details(returns)
-    if dd_df.height > 0:
-        dd_table = _df_to_html_table(dd_df)
-        top_drawdowns_section = (
-            f'<div class="section"><h2>Top Drawdowns</h2>{dd_table}</div>'
-        )
-    else:
-        top_drawdowns_section = ""
-
     # ── Charts grid (2-column pairs) ────────────────────────────────
+
     def _grid_section(heading: str, b64: str) -> str:
         return (
             f'<div class="section">'
@@ -1392,7 +1394,6 @@ def _build_html(
         highlight_cards=highlight_cards,
         hero_chart=hero_chart,
         key_performance_block=key_performance_block,
-        top_drawdowns_section=top_drawdowns_section,
         charts_grid_block=charts_grid_block,
         monte_carlo_section=monte_carlo_section,
         regime_section=regime_section,
