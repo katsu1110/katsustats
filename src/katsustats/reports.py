@@ -674,6 +674,16 @@ _HTML_TEMPLATE = """\
     color: var(--text2);
     font-weight: 500;
   }}
+  table.metrics tr.metric-group td {{
+    background: var(--surface2);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-top: 16px;
+    border-bottom: 1px solid var(--border);
+  }}
 
   /* Charts */
   .chart-img {{
@@ -726,6 +736,14 @@ _HTML_TEMPLATE = """\
   @media (max-width: 900px) {{
     .grid-keyperf, .charts-grid {{ grid-template-columns: 1fr; }}
     body {{ padding: 20px 16px; }}
+  }}
+
+  @media print {{
+    body {{ background: white; padding: 0; }}
+    .section, .highlight-card, .charts-grid .section {{
+      page-break-inside: avoid;
+    }}
+    * {{ -webkit-print-color-adjust: exact; color-adjust: exact; }}
   }}
 </style>
 </head>
@@ -1127,6 +1145,99 @@ def markdown(
     return rendered
 
 
+_METRIC_GROUPS = {
+    "Return & Risk": [
+        "Total Return",
+        "CAGR",
+        "Max Drawdown",
+        "Volatility (ann.)",
+    ],
+    "Risk-Adjusted": [
+        "Sharpe Ratio",
+        "Sortino Ratio",
+        "Calmar Ratio",
+        "Omega Ratio",
+        "Martin Ratio",
+        "Gain-to-Pain Ratio",
+        "Kelly Criterion",
+        "Probabilistic Sharpe",
+        "Payoff Ratio",
+    ],
+    "Trade Distribution": [
+        "Win Rate",
+        "Profit Factor",
+        "Best Day",
+        "Worst Day",
+        "Avg Win",
+        "Avg Loss",
+        "Best Month",
+        "Worst Month",
+        "Best Year",
+        "Worst Year",
+        "Positive Months",
+        "Positive Years",
+    ],
+    "Tail Risk & VaR": [
+        "Daily VaR (95%)",
+        "CVaR (95%)",
+        "Recovery Factor",
+        "Skewness",
+        "Kurtosis",
+        "Ulcer Index",
+    ],
+    "Benchmark Relative": [
+        "Alpha",
+        "Beta",
+        "Correlation",
+        "Information Ratio",
+        "Excess Return",
+        "Treynor Ratio",
+        "R-Squared",
+        "Up Capture",
+        "Down Capture",
+    ],
+}
+
+
+def _grouped_metrics_to_html_table(
+    df: pl.DataFrame, *, css_class: str = "metrics"
+) -> str:
+    """Convert a metrics DataFrame to a grouped HTML <table> string."""
+    cols = df.columns
+    data = df.to_dict(as_series=False)
+    n_rows = len(data[cols[0]])
+
+    # Map metrics to their row index
+    metric_to_idx = {data["metric"][i]: i for i in range(n_rows)}
+
+    rows_html: list[str] = []
+    header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
+    rows_html.append(f"<tr>{header_cells}</tr>")
+
+    colspan = len(cols)
+
+    for group_name, metric_names in _METRIC_GROUPS.items():
+        # Filter to metrics that actually exist in the dataframe
+        valid_metrics = [m for m in metric_names if m in metric_to_idx]
+        if not valid_metrics:
+            continue
+
+        # Add group header
+        rows_html.append(
+            f'<tr class="metric-group"><td colspan="{colspan}">{_html.escape(group_name)}</td></tr>'
+        )
+
+        for m in valid_metrics:
+            idx = metric_to_idx[m]
+            cells = "".join(
+                f"<td>{_html.escape(_format_cell(col, data[col][idx]))}</td>"
+                for col in cols
+            )
+            rows_html.append(f"<tr>{cells}</tr>")
+
+    return f'<table class="{css_class}">{"".join(rows_html)}</table>'
+
+
 def _build_html(
     returns: DataFrameLike,
     benchmark: DataFrameLike | None,
@@ -1155,7 +1266,7 @@ def _build_html(
     # ── Metrics ─────────────────────────────────────────────────────
     summary = stats.summary_metrics_raw(returns, benchmark, rf, periods)
     metrics_df = stats.summary_metrics(returns, benchmark, rf, periods)
-    metrics_table = _df_to_html_table(metrics_df)
+    metrics_table = _grouped_metrics_to_html_table(metrics_df)
 
     # ── Headline cards ──────────────────────────────────────────────
     highlight_defs = [
