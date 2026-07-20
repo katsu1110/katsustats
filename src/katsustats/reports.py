@@ -653,7 +653,7 @@ _HTML_TEMPLATE = """\
   }}
   table.metrics th {{
     text-align: left;
-    padding: 10px 14px;
+    padding: 6px 14px;
     background: var(--surface2);
     color: var(--text2);
     font-weight: 600;
@@ -663,7 +663,7 @@ _HTML_TEMPLATE = """\
     border-bottom: 1px solid var(--border);
   }}
   table.metrics td {{
-    padding: 9px 14px;
+    padding: 5px 14px;
     border-bottom: 1px solid var(--border);
     color: var(--text);
   }}
@@ -681,7 +681,8 @@ _HTML_TEMPLATE = """\
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    padding-top: 16px;
+    padding-top: 12px;
+    padding-bottom: 4px;
     border-bottom: 1px solid var(--border);
   }}
 
@@ -769,6 +770,9 @@ _HTML_TEMPLATE = """\
 
   <!-- Key Performance: Metrics table (left) | Period + Yearly + Drawdown (right) -->
   {key_performance_block}
+
+  <!-- Top Drawdowns (full-width) -->
+  {top_drawdowns_section}
 
   <!-- Charts Grid: paired two-column layout -->
 
@@ -1306,15 +1310,15 @@ def _build_html(
         f"</div>"
     )
 
-    # ── Top Drawdowns (for injection into Key Performance left column) ──
+    # ── Top Drawdowns (full-width) ───────────────────────────────────
     dd_df = stats.drawdown_details(returns)
     if dd_df.height > 0:
         dd_table = _df_to_html_table(dd_df)
-        top_drawdowns_html = (
-            f'<h3 class="section-sub-heading">Top Drawdowns</h3>{dd_table}'
+        top_drawdowns_section = (
+            f'<div class="section"><h2>Top Drawdowns</h2>{dd_table}</div>'
         )
     else:
-        top_drawdowns_html = ""
+        top_drawdowns_section = ""
 
     # ── Key Performance block tables ──────────────────────────────────
     period_df = stats.period_performance(returns, benchmark)
@@ -1335,7 +1339,6 @@ def _build_html(
         f"<div>"
         f'<h3 class="section-sub-heading">Performance Metrics</h3>'
         f"{metrics_table}"
-        f'<div style="margin-top:16px">{top_drawdowns_html}</div>'
         f"</div>"
         f'<div class="stack">'
         f'<div><h3 class="section-sub-heading">Period Performance</h3>{period_html}</div>'
@@ -1505,6 +1508,7 @@ def _build_html(
         highlight_cards=highlight_cards,
         hero_chart=hero_chart,
         key_performance_block=key_performance_block,
+        top_drawdowns_section=top_drawdowns_section,
         charts_grid_block=charts_grid_block,
         monte_carlo_section=monte_carlo_section,
         regime_section=regime_section,

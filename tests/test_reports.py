@@ -216,7 +216,7 @@ class TestHtml:
         assert "Period Performance" in result
         assert "MTD" in result
         assert "SI" in result
-        assert result.index("Top Drawdowns") < result.index("Period Performance")
+        assert result.index("Period Performance") < result.index("Top Drawdowns")
 
     def test_with_benchmark_includes_regime_analysis_section(self):
         from datetime import date, timedelta
