@@ -226,6 +226,8 @@ When a benchmark is provided, the HTML report also includes regime analysis.
 
 [**View a BTC vs ETH backtest report**](https://htmlpreview.github.io/?https://github.com/katsu1110/katsustats/blob/main/examples/reports/btc_eth_report.html).
 
+![HTML Report Preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/html_report.png)
+
 ## JSON report
 
 Generate an AI-friendly structured JSON report (see [example](examples/reports/btc_eth_report.json)):
@@ -367,7 +369,8 @@ katsustats.plots.plot_yearly_returns(returns, benchmark)
 katsustats.plots.plot_return_distribution(returns, benchmark)
 katsustats.plots.plot_rolling_sharpe(returns, benchmark)
 katsustats.plots.plot_rolling_volatility(returns, benchmark)
-katsustats.plots.plot_dow_returns(returns)
+katsustats.plots.plot_dow_distribution(returns)
+katsustats.plots.plot_dow_winrate(returns)
 ```
 
 ## Metrics produced

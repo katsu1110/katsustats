@@ -57,7 +57,7 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         figs = result["figures"]
         assert isinstance(figs, dict)
-        assert len(figs) == 9
+        assert len(figs) == 10
         for fig in figs.values():
             assert isinstance(fig, matplotlib.figure.Figure)
 
@@ -216,7 +216,7 @@ class TestHtml:
         assert "Period Performance" in result
         assert "MTD" in result
         assert "SI" in result
-        assert result.index("Top Drawdowns") < result.index("Period Performance")
+        assert result.index("Period Performance") < result.index("Top Drawdowns")
 
     def test_with_benchmark_includes_regime_analysis_section(self):
         from datetime import date, timedelta
