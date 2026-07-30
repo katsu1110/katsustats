@@ -139,10 +139,15 @@ def _df_to_html_table(df: pl.DataFrame, *, css_class: str = "metrics") -> str:
     header_cells = "".join(f"<th>{_html.escape(str(col))}</th>" for col in cols)
     rows_html.append(f"<tr>{header_cells}</tr>")
     for i in range(n_rows):
-        cells = "".join(
-            f"<td>{_html.escape(_format_cell(col, data[col][i]))}</td>" for col in cols
-        )
-        rows_html.append(f"<tr>{cells}</tr>")
+        cell_strs = []
+        for col in cols:
+            raw_val = data[col][i]
+            val_str = _html.escape(_format_cell(col, raw_val))
+            if col == "period" and str(raw_val) in _PERIOD_DESCRIPTIONS:
+                desc = _html.escape(_PERIOD_DESCRIPTIONS[str(raw_val)])
+                val_str = f'<span class="metric-label" title="{desc}">{val_str}</span>'
+            cell_strs.append(f"<td>{val_str}</td>")
+        rows_html.append(f"<tr>{''.join(cell_strs)}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
 
@@ -686,6 +691,10 @@ _HTML_TEMPLATE = """\
     border-bottom: 1px solid var(--border);
   }}
 
+  .metric-label {{
+    text-decoration: underline dotted var(--text2);
+    text-underline-offset: 4px;
+  }}
   /* Charts */
   .chart-img {{
     width: 100%;
@@ -1207,6 +1216,61 @@ _METRIC_GROUPS = {
     ],
 }
 
+_METRIC_DESCRIPTIONS = {
+    "Total Return": "Cumulative return over the entire period.",
+    "CAGR": "Compound Annual Growth Rate.",
+    "Max Drawdown": "Maximum observed loss from a peak to a trough.",
+    "Volatility (ann.)": "Annualised standard deviation of returns.",
+    "Volatility": "Annualised standard deviation of returns.",
+    "Sharpe Ratio": "Return earned in excess of the risk-free rate per unit of volatility.",
+    "Sharpe": "Return earned in excess of the risk-free rate per unit of volatility.",
+    "Sortino Ratio": "Return in excess of the risk-free rate per unit of downside volatility.",
+    "Calmar Ratio": "Annualised return divided by the maximum drawdown.",
+    "Omega Ratio": "Probability-weighted ratio of gains versus losses for a threshold return.",
+    "Martin Ratio": "Return divided by the Ulcer Index (downside volatility).",
+    "Gain-to-Pain Ratio": "Sum of all returns divided by the absolute value of the sum of all negative returns.",
+    "Kelly Criterion": "Fraction of capital that should be wagered to maximise long-term growth.",
+    "Probabilistic Sharpe": "Probability that the estimated Sharpe ratio is greater than the benchmark Sharpe ratio.",
+    "Payoff Ratio": "Average winning trade divided by the average losing trade.",
+    "Win Rate": "Percentage of periods with positive returns.",
+    "Profit Factor": "Gross profit divided by gross loss.",
+    "Best Day": "Highest single day return.",
+    "Worst Day": "Lowest single day return.",
+    "Avg Win": "Average return of profitable periods.",
+    "Avg Loss": "Average return of losing periods.",
+    "Best Month": "Highest single month return.",
+    "Worst Month": "Lowest single month return.",
+    "Best Year": "Highest single year return.",
+    "Worst Year": "Lowest single year return.",
+    "Positive Months": "Percentage of months with positive returns.",
+    "Positive Years": "Percentage of years with positive returns.",
+    "Daily VaR (95%)": "Value at Risk: maximum expected loss over a day with 95% confidence.",
+    "CVaR (95%)": "Conditional Value at Risk: expected loss given that the loss exceeds the 95% VaR.",
+    "Recovery Factor": "Total return divided by the maximum drawdown.",
+    "Skewness": "Measure of the asymmetry of the return distribution.",
+    "Kurtosis": "Measure of the 'tailedness' of the return distribution.",
+    "Ulcer Index": "Measure of downside risk focusing on the depth and duration of drawdowns.",
+    "Alpha": "Excess return of an investment relative to the return of a benchmark index.",
+    "Beta": "Measure of the volatility of an investment compared to the market as a whole.",
+    "Correlation": "Statistical measure of how two securities move in relation to each other.",
+    "Information Ratio": "Ratio of portfolio returns above the benchmark to the volatility of those returns.",
+    "Excess Return": "Return of the portfolio minus the return of the benchmark.",
+    "Treynor Ratio": "Return earned in excess of that which could have been earned on a riskless investment per each unit of market risk.",
+    "R-Squared": "Percentage of a fund's movements that can be explained by movements in a benchmark index.",
+    "Up Capture": "Measure of a manager's performance in up markets relative to the market itself.",
+    "Down Capture": "Measure of a manager's performance in down markets relative to the market itself.",
+}
+
+_PERIOD_DESCRIPTIONS = {
+    "MTD": "Month to Date",
+    "QTD": "Quarter to Date",
+    "YTD": "Year to Date",
+    "1Y": "1 Year",
+    "3Y": "3 Years",
+    "5Y": "5 Years",
+    "SI": "Since Inception",
+}
+
 
 def _grouped_metrics_to_html_table(
     df: pl.DataFrame, *, css_class: str = "metrics"
@@ -1238,11 +1302,16 @@ def _grouped_metrics_to_html_table(
 
         for m in valid_metrics:
             idx = metric_to_idx[m]
-            cells = "".join(
-                f"<td>{_html.escape(_format_cell(col, data[col][idx]))}</td>"
-                for col in cols
-            )
-            rows_html.append(f"<tr>{cells}</tr>")
+            cell_strs = []
+            for i, col in enumerate(cols):
+                val_str = _html.escape(_format_cell(col, data[col][idx]))
+                if i == 0 and m in _METRIC_DESCRIPTIONS:
+                    desc = _html.escape(_METRIC_DESCRIPTIONS[m])
+                    val_str = (
+                        f'<span class="metric-label" title="{desc}">{val_str}</span>'
+                    )
+                cell_strs.append(f"<td>{val_str}</td>")
+            rows_html.append(f"<tr>{''.join(cell_strs)}</tr>")
 
     return f'<table class="{css_class}">{"".join(rows_html)}</table>'
 
@@ -1295,9 +1364,17 @@ def _build_html(
             css_cls = ""
         else:
             css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
+
+        label_html = _html.escape(label)
+        if label in _METRIC_DESCRIPTIONS:
+            desc = _html.escape(_METRIC_DESCRIPTIONS[label])
+            label_html = (
+                f'<span class="metric-label" title="{desc}">{label_html}</span>'
+            )
+
         cards.append(
             f'<div class="highlight-card">'
-            f'<div class="label">{label}</div>'
+            f'<div class="label">{label_html}</div>'
             f'<div class="value {css_cls}">{fmt_val}</div>'
             f"</div>"
         )
