@@ -57,9 +57,7 @@ CI runs on every PR and push to main (`.github/workflows/ci.yml`). All tests and
 - Purely functional — no OOP
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
 
-## Agent Skills (GitHub Copilot)
+## Agent Skills
 
-Skills are located in `.github/skills/`.
+Skills are located in `.claude/skills/`.
 - `publish` — Publish a new katsustats release to PyPI.
-- `code-simplify` — Refactor recently changed code for clarity, consistency, and maintainability.
-- `make-skill-template` — Create new GitHub Copilot agent skills for this repository.
