@@ -45,7 +45,7 @@ uv build
 - `from __future__ import annotations` in all modules; `py.typed` marker for PEP 561
 - snake_case functions, `_` prefix for private helpers; short docstrings on all public functions
 - Section separators: `# ---...---` comment banners
-- Input validation via `assert` or `raise ValueError` in library code; `sys.exit()` with user-facing messages in the CLI
+- Input validation via `raise ValueError` in library code; `sys.exit()` with user-facing messages in the CLI
 - pandas inputs are normalized in `_dataframe.py:ensure_polars()` — no changes needed in stats/plots/reports
 - Purely functional — no OOP
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
