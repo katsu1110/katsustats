@@ -734,9 +734,7 @@ class TestRegimeStats:
         ]
 
     def test_requires_benchmark(self, sample_df):
-        with pytest.raises(
-            ValueError, match="base_df is required for regime_stats"
-        ):
+        with pytest.raises(ValueError, match="base_df is required for regime_stats"):
             stats.regime_stats(sample_df, None)
 
     def test_large_windows_leave_short_series_with_nan_metrics(
