@@ -14,7 +14,7 @@ Usage:
 
 from __future__ import annotations
 
-from . import plots, reports, stats
+from . import plots, reports, stats  # noqa: F401
 
 __version__ = "0.10.0"
 
