@@ -735,7 +735,7 @@ class TestRegimeStats:
 
     def test_requires_benchmark(self, sample_df):
         with pytest.raises(
-            AssertionError, match="base_df is required for regime_stats"
+            ValueError, match="base_df is required for regime_stats"
         ):
             stats.regime_stats(sample_df, None)
 
@@ -966,7 +966,7 @@ class TestPandasInputs:
         import pandas as pd
 
         df = pd.DataFrame({"returns": [0.01, -0.005, 0.008]})
-        with pytest.raises(AssertionError, match="is missing columns"):
+        with pytest.raises(ValueError, match="is missing columns"):
             stats.total_return(df)
 
     def test_non_tabular_pandas_object_raises_type_error(self):

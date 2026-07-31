@@ -109,7 +109,8 @@ def ensure_polars(df: Any, name: str = "df") -> pl.DataFrame:
             f"got {type(df).__name__}"
         )
     missing = {COL_DATE, COL_RETURNS} - set(polars_df.columns)
-    assert not missing, f"{name} is missing columns: {missing}"
+    if missing:
+        raise ValueError(f"{name} is missing columns: {missing}")
     if polars_df.schema[COL_DATE] != pl.Date:
         polars_df = polars_df.with_columns(pl.col(COL_DATE).cast(pl.Date))
     polars_df = polars_df.select([COL_DATE, COL_RETURNS])

@@ -158,21 +158,24 @@ def _validate_and_sort(
 ) -> tuple[pl.DataFrame, pl.DataFrame | None]:
     """Normalise, validate, and sort inputs; return (returns, benchmark) as Polars frames."""
     returns = ensure_polars(returns, name=COL_RETURNS)
-    assert COL_DATE in returns.columns, "returns must have a 'date' column"
-    assert COL_RETURNS in returns.columns, "returns must have a 'returns' column"
+    if COL_DATE not in returns.columns:
+        raise ValueError("returns must have a 'date' column")
+    if COL_RETURNS not in returns.columns:
+        raise ValueError("returns must have a 'returns' column")
     if benchmark is not None:
         benchmark = ensure_polars(benchmark, name="benchmark")
-        assert COL_DATE in benchmark.columns, "benchmark must have a 'date' column"
-        assert COL_RETURNS in benchmark.columns, (
-            "benchmark must have a 'returns' column"
-        )
+        if COL_DATE not in benchmark.columns:
+            raise ValueError("benchmark must have a 'date' column")
+        if COL_RETURNS not in benchmark.columns:
+            raise ValueError("benchmark must have a 'returns' column")
     returns = returns.sort(COL_DATE)
-    assert returns[COL_DATE].n_unique() == returns.height, (
-        "Expected `returns` to have unique dates after `ensure_polars()` "
-        "normalization/compounding. If this fails, check the input for "
-        "duplicate same-date rows or investigate whether normalization "
-        "did not run as expected."
-    )
+    if returns[COL_DATE].n_unique() != returns.height:
+        raise ValueError(
+            "Expected `returns` to have unique dates after `ensure_polars()` "
+            "normalization/compounding. If this fails, check the input for "
+            "duplicate same-date rows or investigate whether normalization "
+            "did not run as expected."
+        )
     if benchmark is not None:
         benchmark = benchmark.sort(COL_DATE)
     return returns, benchmark
