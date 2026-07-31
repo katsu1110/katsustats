@@ -20,10 +20,10 @@ jobs:
         run: uv sync --dev
 
       - name: Lint (ruff check)
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check src/ tests/ examples/
 
       - name: Format check (ruff format)
-        run: uv run ruff format --check src/ tests/
+        run: uv run ruff format --check src/ tests/ examples/
 
       - name: Run tests
         run: uv run pytest tests/ -v

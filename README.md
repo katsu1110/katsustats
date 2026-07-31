@@ -112,37 +112,11 @@ returns = pl.DataFrame({
 results = katsustats.reports.full(returns)
 ```
 
-Pandas inputs work too:
-
-```python
-import pandas as pd
-
-returns = pd.DataFrame({
-    "date": dates,
-    "returns": your_daily_returns,
-})
-
-results = katsustats.reports.full(returns)
-```
-
-### Migrating from quantstats
-
-If your existing code passes a ``pd.Series`` or a ``pd.DataFrame`` with a
-``DatetimeIndex`` (the quantstats convention), both work without modification:
-
-```python
-import pandas as pd
-
-# pd.Series with DatetimeIndex
-returns = pd.Series(your_daily_returns, index=date_index, name="returns")
-results = katsustats.reports.full(returns)
-
-# pd.DataFrame with DatetimeIndex
-returns = pd.DataFrame({"returns": your_daily_returns}, index=date_index)
-results = katsustats.reports.full(returns)
-```
-
-See also the runnable examples in [`examples/quickstart.py`](examples/quickstart.py), [`examples/with_benchmark.py`](examples/with_benchmark.py), and [`examples/html_report.py`](examples/html_report.py).
+Pandas DataFrames work the same way, and quantstats-style `DatetimeIndex`
+inputs are accepted automatically (see [Data format](#data-format)). Runnable
+examples: [`examples/quickstart.py`](examples/quickstart.py),
+[`examples/with_benchmark.py`](examples/with_benchmark.py), and
+[`examples/html_report.py`](examples/html_report.py).
 
 `results` is a dict with the following keys:
 
@@ -181,10 +155,10 @@ results = katsustats.reports.full(
 
 ## CLI
 
-Generate an HTML tearsheet directly from a CSV or Parquet file — no script needed:
+Generate a report directly from a CSV or Parquet file — no script needed:
 
 ```bash
-# From a CSV file (date and returns columns)
+# HTML tearsheet (default)
 katsustats report trades.csv -o report.html
 
 # Structured JSON for AI agents / downstream tooling
@@ -193,77 +167,43 @@ katsustats report trades.csv --format json -o report.json
 # Markdown summary for humans and agents
 katsustats report trades.csv --format markdown -o report.md
 
-# Custom column names
-katsustats report trades.csv --date-col day --returns-col pnl -o report.html
-
-# With a benchmark and a custom title
-katsustats report trades.csv --benchmark benchmark.csv --title "My Strategy" -o report.html
-
-# From a Parquet file with a custom risk-free rate
-katsustats report trades.parquet --rf 0.04 -o report.html
-
-# Crypto data (365 days/year) with Monte Carlo
-katsustats report crypto.csv --periods 365 --monte-carlo --mc-method bootstrap -o report.html
+# Custom column names, benchmark, and title
+katsustats report trades.csv --date-col day --returns-col pnl --benchmark benchmark.csv --title "My Strategy" -o report.html
 ```
 
-If `-o` is omitted the report is written alongside the input file (for example `trades.html`, `trades.json`, or `trades.md`).
+If `-o` is omitted the report is written alongside the input file (for example `trades.html`, `trades.json`, or `trades.md`). Run `katsustats report --help` for all options (including `--periods 365` for crypto data, `--rf`, and `--monte-carlo`).
 
-## HTML report
+## Reports
 
-Generate a self-contained HTML report (similar to `qs.reports.html()`):
+Generate a self-contained report in any of three formats:
 
 ```python
 # Save to file
 katsustats.reports.html(returns, benchmark=benchmark, title="My Strategy", output="report.html")
+katsustats.reports.json(returns, benchmark=benchmark, title="My Strategy", output="report.json")
+katsustats.reports.markdown(returns, benchmark=benchmark, title="My Strategy", output="report.md")
 
-# Or get HTML string
+# Or get the string directly
 html_str = katsustats.reports.html(returns, title="My Strategy")
 ```
 
-The report includes headline metric cards, performance tables, period performance, drawdown analysis, day-of-week statistics, and all 8 charts embedded as images — all in a single `.html` file that works offline.
+| format | function | CLI | example |
+|--------|----------|-----|---------|
+| HTML | `reports.html()` | `katsustats report trades.csv -o report.html` | [btc_eth_report.html](examples/reports/btc_eth_report.html) |
+| JSON | `reports.json()` | `katsustats report trades.csv --format json -o report.json` | [btc_eth_report.json](examples/reports/btc_eth_report.json) |
+| Markdown | `reports.markdown()` | `katsustats report trades.csv --format markdown -o report.md` | [btc_eth_report.md](examples/reports/btc_eth_report.md) |
 
-When a benchmark is provided, the HTML report also includes regime analysis.
+All formats include headline metrics, performance and period-performance tables, top drawdowns, and day-of-week statistics; a benchmark adds regime analysis.
+
+The HTML report embeds all 8 charts in a single offline file:
 
 [**View a BTC vs ETH backtest report**](https://htmlpreview.github.io/?https://github.com/katsu1110/katsustats/blob/main/examples/reports/btc_eth_report.html).
 
 ![HTML Report Preview](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/html_report.png)
 
-## JSON report
-
-Generate an AI-friendly structured JSON report (see [example](examples/reports/btc_eth_report.json)):
-
-```python
-# Save to file
-katsustats.reports.json(returns, benchmark=benchmark, title="My Strategy", output="report.json")
-
-# Or get JSON string
-json_str = katsustats.reports.json(returns, title="My Strategy")
-```
-
-The JSON output is optimized for LLMs, agents, and other automation tools. It
-includes raw numeric metrics, structured period performance, top drawdowns,
-day-of-week statistics, and regime analysis when a benchmark is provided.
-
-## Markdown report
-
-Generate a Markdown backtest summary (see [example](examples/reports/btc_eth_report.md)):
-
-```python
-# Save to file
-katsustats.reports.markdown(returns, benchmark=benchmark, title="My Strategy", output="report.md")
-
-# Or get Markdown string
-md_str = katsustats.reports.markdown(returns, title="My Strategy")
-```
-
-The Markdown output is designed to be readable in editors, GitHub, chat tools,
-and agent workflows. It includes an overview, headline metrics, performance
-tables, period performance, top drawdowns, day-of-week statistics, and optional
-regime analysis.
-
 ## Monte Carlo simulation
 
-Enable Monte Carlo analysis by passing `monte_carlo=True` to `reports.html()` or `reports.full()`. The simulation resamples your historical returns thousands of times (bootstrap by default) to show the range of outcomes that luck alone could have produced — keeping the same return distribution while breaking the original time order.
+Pass `monte_carlo=True` to `reports.html()` or `reports.full()` to resample your historical returns thousands of times and see the range of outcomes luck alone could have produced:
 
 ```python
 katsustats.reports.html(
@@ -278,16 +218,13 @@ katsustats.reports.html(
 )
 ```
 
-The default `bootstrap` method samples returns **with replacement**, producing genuine variation in terminal return, Sharpe, and CAGR across paths. Use `mc_method="shuffle"` for the classic permutation approach (sampling without replacement), where terminal return is identical across all paths but max drawdown still varies due to path-dependent ordering.
+`bootstrap` samples returns **with replacement**, so terminal return, Sharpe, and CAGR vary across paths. `shuffle` permutes without replacement, so terminal return is identical across paths, but max drawdown still varies — drawdown is path-dependent: a run of losses early hurts far more than the same losses late.
 
-The HTML report adds two panels to the Monte Carlo section:
+The HTML report adds two panels:
 
 | Simulated paths | Max drawdown distribution |
 |-----------------|--------------------------|
 | ![Monte Carlo paths](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/monte_carlo_simulations.png) | ![Max drawdown distribution](https://raw.githubusercontent.com/katsu1110/katsustats/main/img/simulated_max_drawdown.png) |
-
-- **Simulated paths** — fan of simulated cumulative return paths with the original path highlighted. Shows how differently the same returns could have played out under alternative orderings.
-- **Max drawdown distribution** — histogram of the worst drawdown across each simulated path. Because drawdown is path-dependent (a run of losses early hurts far more than the same losses late), this distribution has genuine spread and tells you how lucky or unlucky your drawdown sequence was.
 
 You can also call the underlying stats directly:
 
@@ -338,41 +275,6 @@ fig = katsustats.plots.plot_snapshot(returns, window="3M", title="My Strategy", 
 fig.savefig("snapshot_dark.png", facecolor=fig.get_facecolor())
 ```
 
-## Using individual modules
-
-You can also call the lower-level APIs directly:
-
-```python
-import katsustats
-
-# --- Stats ---
-katsustats.stats.total_return(returns)
-katsustats.stats.cagr(returns)
-katsustats.stats.sharpe(returns, rf=0.0)
-katsustats.stats.sortino(returns)
-katsustats.stats.max_drawdown(returns)
-katsustats.stats.calmar(returns)
-katsustats.stats.volatility(returns)
-katsustats.stats.win_rate(returns)
-katsustats.stats.profit_factor(returns)
-katsustats.stats.value_at_risk(returns, alpha=0.05)
-
-katsustats.stats.drawdown_details(returns, top_n=5)      # pl.DataFrame
-katsustats.stats.day_of_week_stats(returns)              # pl.DataFrame
-katsustats.stats.summary_metrics(returns, benchmark)     # pl.DataFrame
-
-# --- Plots ---
-katsustats.plots.plot_cumulative_returns(returns, benchmark)
-katsustats.plots.plot_drawdown(returns)
-katsustats.plots.plot_monthly_heatmap(returns)
-katsustats.plots.plot_yearly_returns(returns, benchmark)
-katsustats.plots.plot_return_distribution(returns, benchmark)
-katsustats.plots.plot_rolling_sharpe(returns, benchmark)
-katsustats.plots.plot_rolling_volatility(returns, benchmark)
-katsustats.plots.plot_dow_distribution(returns)
-katsustats.plots.plot_dow_winrate(returns)
-```
-
 ## Metrics produced
 
 | metric | description |
@@ -397,3 +299,7 @@ katsustats.plots.plot_dow_winrate(returns)
 | Positive Months / Years | Share of profitable months / years |
 
 When a benchmark is provided, `katsustats` also reports **Alpha**, **Beta**, **Correlation**, **Information Ratio**, and **Excess Return**.
+
+## Lower-level APIs
+
+`katsustats.stats` exposes 60+ metric functions (rolling metrics, drawdown details, benchmark comparisons, Monte Carlo, and more) and `katsustats.plots` exposes 18 chart functions — all documented in their docstrings. See [`examples/`](examples/) for runnable usage.
