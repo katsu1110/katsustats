@@ -35,8 +35,8 @@ uv build
 
 ## Common Agent Tasks
 - **Testing**: Run `uv run pytest tests/ -v`.
-- **Linting**: Run `uv run ruff check src/ tests/`.
-- **Formatting**: Run `uv run ruff format src/ tests/` (CI uses `--check`).
+- **Linting**: Run `uv run ruff check src/ tests/ examples/`.
+- **Formatting**: Run `uv run ruff format src/ tests/ examples/` (CI uses `--check`).
 - **Adding Metrics**: Implement in `stats.py`, then expose via `reports.py` (both JSON and Markdown formats).
 - **Adding Plots**: Implement in `plots.py`, ensure they use `_apply_style()`, and update `reports.html()`.
 - **CLI sanity check**: `uv run katsustats report --help`.
@@ -51,5 +51,5 @@ uv build
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
 
 ## Agent Skills
-Skills are located in `.claude/skills/`:
+Skills are located in `.github/skills/`:
 - `publish` — Publish a new katsustats release to PyPI.

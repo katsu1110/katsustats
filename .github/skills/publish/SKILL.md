@@ -96,6 +96,6 @@ After the release is created:
 
 ## Example prompts
 
-- `Use the /publish skill to cut the next PyPI release for katsustats.`
-- `Use the /publish skill and release version 0.3.0.`
+- `Use the publish skill to cut the next PyPI release for katsustats.`
+- `Use the publish skill and release version 0.3.0.`
 - `Publish katsustats to PyPI.`
