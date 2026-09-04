@@ -1684,3 +1684,178 @@ def monte_carlo_summary(
         "sims": sims,
         "seed": seed,
     }
+
+
+# ---------------------------------------------------------------------------
+# QuantStats Parity
+# ---------------------------------------------------------------------------
+
+
+def expected_return(df: DataFrameLike) -> float:
+    """Geometric holding-period return: prod(1+r)^(1/n) - 1 (quantstats parity)."""
+    r = _to_returns(df)
+    n = r.len()
+    if n == 0:
+        return float("nan")
+    return float((r + 1).product() ** (1 / n) - 1)
+
+
+def geometric_mean(df: DataFrameLike) -> float:
+    """Alias for expected_return (quantstats parity)."""
+    return expected_return(df)
+
+
+def ghpr(df: DataFrameLike) -> float:
+    """Alias for expected_return (quantstats parity)."""
+    return expected_return(df)
+
+
+def outlier_win_ratio(df: DataFrameLike, quantile: float = 0.99) -> float:
+    """q(quantile) / mean(positive returns) (quantstats parity)."""
+    r = _to_returns(df)
+    pos = r.filter(r >= 0)
+    mean_pos = pos.mean()
+    if mean_pos is None or mean_pos == 0:
+        return float("nan")
+    q = r.quantile(quantile, interpolation="linear")
+    if q is None:
+        return float("nan")
+    return float(q / mean_pos)
+
+
+def outlier_loss_ratio(df: DataFrameLike, quantile: float = 0.01) -> float:
+    """q(quantile) / mean(negative returns) (quantstats parity)."""
+    r = _to_returns(df)
+    neg = r.filter(r < 0)
+    mean_neg = neg.mean()
+    if mean_neg is None or mean_neg == 0:
+        return float("nan")
+    q = r.quantile(quantile, interpolation="linear")
+    if q is None:
+        return float("nan")
+    return float(q / mean_neg)
+
+
+def outliers(df: DataFrameLike, quantile: float = 0.95) -> pl.DataFrame:
+    """Rows above the quantile threshold (quantstats parity)."""
+    frame = ensure_polars(df)
+    r = frame.get_column(COL_RETURNS)
+    threshold = r.quantile(quantile, interpolation="linear")
+    if threshold is None:
+        return frame.clear()
+    return frame.filter(pl.col(COL_RETURNS) > threshold)
+
+
+def remove_outliers(df: DataFrameLike, quantile: float = 0.95) -> pl.DataFrame:
+    """Rows at or below the quantile threshold (quantstats parity)."""
+    frame = ensure_polars(df)
+    r = frame.get_column(COL_RETURNS)
+    threshold = r.quantile(quantile, interpolation="linear")
+    if threshold is None:
+        return frame
+    return frame.filter(pl.col(COL_RETURNS) <= threshold)
+
+
+def cpc_index(df: DataFrameLike) -> float:
+    """CPC index: profit_factor * win_rate * payoff_ratio (quantstats parity)."""
+    return float(profit_factor(df) * win_rate(df) * payoff_ratio(df))
+
+
+def rar(df: DataFrameLike) -> float:
+    """Risk-adjusted return: CAGR / exposure (quantstats parity)."""
+    denom = exposure(df)
+    if denom == 0:
+        return float("nan")
+    return float(cagr(df) / denom)
+
+
+def risk_return_ratio(df: DataFrameLike) -> float:
+    """Mean / std of daily returns, non-annualized (quantstats parity)."""
+    r = _to_returns(df)
+    std = r.std()
+    if std is None or std == 0:
+        return float("nan")
+    mean = r.mean()
+    if mean is None:
+        return float("nan")
+    return float(mean / std)
+
+
+def adjusted_sortino(df: DataFrameLike, rf: float = 0.0, periods: int = 252) -> float:
+    """Schwager adjusted Sortino: sortino / sqrt(2) (quantstats parity)."""
+    return float(sortino(df, rf, periods) / math.sqrt(2.0))
+
+
+def profit_ratio(df: DataFrameLike) -> float:
+    """|mean(win)/n_win| / |mean(loss)/n_loss| (quantstats parity)."""
+    r = _to_returns(df)
+    wins = r.filter(r >= 0)
+    losses = r.filter(r < 0)
+    n_win, n_loss = wins.len(), losses.len()
+    if n_win == 0:
+        return 0.0
+    if n_loss == 0:
+        return float("nan")
+    win_ratio = abs(float(wins.mean()) / n_win)
+    loss_ratio = abs(float(losses.mean()) / n_loss)
+    if loss_ratio == 0:
+        return float("nan")
+    return float(win_ratio / loss_ratio)
+
+
+def win_loss_ratio(df: DataFrameLike) -> float:
+    """Alias for payoff_ratio (quantstats parity)."""
+    return payoff_ratio(df)
+
+
+def greeks(
+    df: DataFrameLike, base_df: DataFrameLike, periods: int = 252
+) -> dict[str, float]:
+    """Alpha/beta vs benchmark as a dict (quantstats greeks parity)."""
+    a, b = alpha_beta(df, base_df, periods)
+    return {"alpha": float(a), "beta": float(b)}
+
+
+def rolling_greeks(
+    df: DataFrameLike, base_df: DataFrameLike, window: int = 126, periods: int = 252
+) -> pl.DataFrame:
+    """Rolling alpha/beta vs benchmark (quantstats rolling_greeks parity)."""
+    frame = ensure_polars(df).sort(COL_DATE)
+    base = ensure_polars(base_df, name="base_df").sort(COL_DATE)
+    joined = frame.join(base.rename({COL_RETURNS: "_base"}), on=COL_DATE, how="inner")
+    dates = joined.get_column(COL_DATE)
+    r = joined.get_column(COL_RETURNS).to_numpy()
+    b = joined.get_column("_base").to_numpy()
+    alphas: list[float | None] = []
+    betas: list[float | None] = []
+    for i in range(len(joined)):
+        if i + 1 < window or len(joined) < 2:
+            alphas.append(None)
+            betas.append(None)
+            continue
+        rw, bw = r[i - window + 1 : i + 1], b[i - window + 1 : i + 1]
+        m = np.cov(rw, bw)
+        beta = float(m[0, 1] / m[1, 1]) if m[1, 1] != 0 else float("nan")
+        alpha = float((rw.mean() - beta * bw.mean()) * periods)
+        alphas.append(alpha)
+        betas.append(beta)
+    return pl.DataFrame({COL_DATE: dates, "alpha": alphas, "beta": betas})
+
+
+def implied_volatility(df: DataFrameLike, periods: int = 252) -> float:
+    """Annualized vol of log returns (quantstats parity)."""
+    r = _to_returns(df).to_numpy()
+    logr = np.log1p(r[np.isfinite(r) & (r > -1)])
+    if logr.size < 2:
+        return float("nan")
+    return float(np.std(logr, ddof=1) * np.sqrt(periods))
+
+
+def to_drawdown_series(df: DataFrameLike) -> pl.DataFrame:
+    """Underwater series frame [date, drawdown] (quantstats parity)."""
+    frame = ensure_polars(df).sort(COL_DATE)
+    r = frame.get_column(COL_RETURNS)
+    cumval = _cumulative_value(r)
+    running_max = cumval.cum_max().clip(lower_bound=1.0)
+    dd = (cumval - running_max) / running_max
+    return pl.DataFrame({COL_DATE: frame.get_column(COL_DATE), "drawdown": dd})
