@@ -1428,3 +1428,72 @@ def plot_snapshot(
     )
     fig.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# QuantStats Parity Plots
+# ---------------------------------------------------------------------------
+
+
+def plot_earnings(
+    df: DataFrameLike, initial_capital: float = 1e5, figsize: tuple = (12, 5)
+) -> Figure:
+    """Cumulative PnL in currency terms (quantstats earnings parity)."""
+    frame = ensure_polars(df).sort(COL_DATE)
+    dates = frame.get_column(COL_DATE).to_numpy()
+    r = stats._to_returns(frame).to_numpy()
+    equity = initial_capital * np.cumprod(1 + np.nan_to_num(r, nan=0.0))
+    equity = np.concatenate([[initial_capital], equity])
+    dates_full = np.concatenate([[dates[0] - np.timedelta64(1, "D")], dates])
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+    ax.plot(dates_full, equity, lw=1.6, color=_COLORS["strategy"])
+    ax.fill_between(
+        dates_full, equity, initial_capital, alpha=0.15, color=_COLORS["strategy"]
+    )
+    ax.axhline(initial_capital, color=_COLORS["neutral"], lw=0.8, ls="--")
+    _add_title(ax, fig, "Earnings")
+    fig.tight_layout()
+    return fig
+
+
+def plot_log_returns(df: DataFrameLike, figsize: tuple = (12, 5)) -> Figure:
+    """Cumulative log-return curve (quantstats log_returns parity)."""
+    frame = ensure_polars(df).sort(COL_DATE)
+    dates = frame.get_column(COL_DATE).to_numpy()
+    r = stats._to_returns(frame).to_numpy()
+    clipped = np.clip(np.nan_to_num(r, nan=0.0), -0.9999, None)
+    cum_log = np.cumsum(np.log1p(clipped))
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+    ax.plot(dates, cum_log, lw=1.4, color=_COLORS["strategy"])
+    _add_title(ax, fig, "Cumulative Log Returns")
+    fig.tight_layout()
+    return fig
+
+
+def plot_histogram(
+    df: DataFrameLike, bins: int = 50, figsize: tuple = (12, 5)
+) -> Figure:
+    """Return histogram with mean line (quantstats histogram parity)."""
+    frame = ensure_polars(df)
+    r = stats._to_returns(frame).to_numpy()
+    fig, ax = plt.subplots(figsize=figsize)
+    _apply_style(ax, fig)
+    ax.hist(
+        r,
+        bins=bins,
+        color=_COLORS["strategy"],
+        alpha=0.65,
+        edgecolor="white",
+        linewidth=0.5,
+    )
+    mean = float(np.nanmean(r)) if r.size else 0.0
+    ax.axvline(
+        mean, color=_COLORS["negative"], lw=1.4, ls="--", label=f"Mean ({mean:.2%})"
+    )
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(_pct_formatter))
+    ax.legend(fontsize=9, frameon=False)
+    _add_title(ax, fig, "Return Histogram")
+    fig.tight_layout()
+    return fig

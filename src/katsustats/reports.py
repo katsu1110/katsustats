@@ -1605,3 +1605,103 @@ def _build_html(
             f.write(rendered)
 
     return rendered
+
+
+# ---------------------------------------------------------------------------
+# QuantStats Parity: metrics(mode) / basic()
+# ---------------------------------------------------------------------------
+
+_BASIC_METRIC_KEYS = [
+    "total_return",
+    "cagr",
+    "sharpe",
+    "sortino",
+    "max_drawdown",
+    "volatility",
+    "win_rate",
+]
+
+_FULL_EXTRA_METRICS: list[tuple[str, str, str]] = [
+    ("Expected Return", "expected_return", "pct"),
+    ("Adjusted Sortino", "adjusted_sortino", "float"),
+    ("Risk-Return Ratio", "risk_return_ratio", "float"),
+    ("RAR", "rar", "pct"),
+    ("CPC Index", "cpc_index", "float"),
+    ("Outlier Win Ratio", "outlier_win_ratio", "float"),
+    ("Outlier Loss Ratio", "outlier_loss_ratio", "float"),
+    ("Profit Ratio", "profit_ratio", "float"),
+    ("Win-Loss Ratio", "win_loss_ratio", "float"),
+    ("Implied Volatility", "implied_volatility", "pct"),
+]
+
+
+def metrics(
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+    mode: str = "basic",
+    display: bool = False,
+) -> pl.DataFrame:
+    """Metrics table with ``mode='basic'|'full'`` (quantstats parity)."""
+    if mode not in ("basic", "full"):
+        raise ValueError(f"mode must be 'basic' or 'full', got {mode!r}")
+    returns, benchmark = _validate_and_sort(returns, benchmark)
+    table = stats.summary_metrics(returns, benchmark, rf, periods)
+    if mode == "basic":
+        basic_labels = [
+            label
+            for label, key, _ in stats._SUMMARY_METRIC_SPECS
+            if key in _BASIC_METRIC_KEYS
+        ]
+        table = table.filter(pl.col("metric").is_in(basic_labels))
+    else:
+        extra_raw = {
+            "expected_return": float(stats.expected_return(returns)),
+            "adjusted_sortino": float(stats.adjusted_sortino(returns, rf, periods)),
+            "risk_return_ratio": float(stats.risk_return_ratio(returns)),
+            "rar": float(stats.rar(returns)),
+            "cpc_index": float(stats.cpc_index(returns)),
+            "outlier_win_ratio": float(stats.outlier_win_ratio(returns)),
+            "outlier_loss_ratio": float(stats.outlier_loss_ratio(returns)),
+            "profit_ratio": float(stats.profit_ratio(returns)),
+            "win_loss_ratio": float(stats.win_loss_ratio(returns)),
+            "implied_volatility": float(stats.implied_volatility(returns, periods)),
+        }
+        rows = {
+            "metric": [label for label, _, _ in _FULL_EXTRA_METRICS],
+            "strategy": [
+                stats._format_summary_value(extra_raw[key], fmt)
+                for _, key, fmt in _FULL_EXTRA_METRICS
+            ],
+        }
+        if benchmark is not None:
+            rows["benchmark"] = ["—"] * len(_FULL_EXTRA_METRICS)
+        table = pl.concat([table, pl.DataFrame(rows)], how="diagonal")
+    if display:
+        _print_df(table, f"Metrics ({mode})")
+    return table
+
+
+def basic(
+    returns: DataFrameLike,
+    benchmark: DataFrameLike | None = None,
+    rf: float = 0.0,
+    periods: int = 252,
+    show: bool = False,
+    verbose: bool = True,
+) -> dict:
+    """Basic report: core metrics + core charts (quantstats parity)."""
+    returns, benchmark = _validate_and_sort(returns, benchmark)
+    table = metrics(returns, benchmark, rf, periods, mode="basic")
+    if verbose:
+        _print_df(table, "Performance Metrics (basic)")
+    figures: dict[str, plt.Figure] = {
+        "cumulative_returns": plots.plot_cumulative_returns(returns, benchmark),
+        "drawdown": plots.plot_drawdown(returns),
+        "distribution": plots.plot_return_distribution(returns, benchmark),
+    }
+    if not show:
+        for fig in figures.values():
+            plt.close(fig)
+    return {"metrics": table, "figures": figures}
