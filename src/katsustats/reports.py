@@ -1363,7 +1363,12 @@ def _build_html(
         elif label == "Volatility":
             css_cls = ""
         else:
-            css_cls = "pos" if val > 0 else ("neg" if val < 0 else "")
+            if val > 0:
+                css_cls = "pos"
+            elif val < 0:
+                css_cls = "neg"
+            else:
+                css_cls = ""
 
         label_html = _html.escape(label)
         if label in _METRIC_DESCRIPTIONS:
