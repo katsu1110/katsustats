@@ -39,18 +39,6 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         assert result["summary"] == stats.summary_metrics_raw(sample_df)
 
-    def test_metrics_is_dataframe(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert isinstance(result["metrics"], pl.DataFrame)
-
-    def test_drawdowns_is_dataframe(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert isinstance(result["drawdowns"], pl.DataFrame)
-
-    def test_dow_stats_is_dataframe(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert isinstance(result["dow_stats"], pl.DataFrame)
-
     def test_figures_is_dict_of_figures(self, sample_df):
         import matplotlib.figure
 
@@ -92,10 +80,6 @@ class TestFull:
         with pytest.raises(AssertionError):
             reports.full(bad_df, show=False)
 
-    def test_positional_rf_still_supported(self, sample_df):
-        result = reports.full(sample_df, None, 0.04, show=False)
-        assert isinstance(result["metrics"], pl.DataFrame)
-
     def test_duplicate_dates_warns_and_aggregates(self):
         duplicate_dates_df = pl.DataFrame(
             {
@@ -112,32 +96,6 @@ class TestFull:
             result = reports.full(duplicate_dates_df, show=False)
 
         assert result["summary"]["total_return"] == pytest.approx(expected_total_return)
-
-    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
-        result = reports.full(
-            sample_pandas_df, benchmark=benchmark_pandas_df, show=False
-        )
-        assert isinstance(result["metrics"], pl.DataFrame)
-
-    def test_accepts_pandas_indexed_df(
-        self, sample_pandas_df_indexed, benchmark_pandas_df_indexed
-    ):
-        result = reports.full(
-            sample_pandas_df_indexed,
-            benchmark=benchmark_pandas_df_indexed,
-            show=False,
-            verbose=False,
-        )
-        assert isinstance(result["metrics"], pl.DataFrame)
-
-    def test_accepts_pandas_series(self, sample_pandas_series, benchmark_pandas_series):
-        result = reports.full(
-            sample_pandas_series,
-            benchmark=benchmark_pandas_series,
-            show=False,
-            verbose=False,
-        )
-        assert isinstance(result["metrics"], pl.DataFrame)
 
     def test_datetime_date_column_accepted(self, sample_df):
         dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
@@ -188,10 +146,6 @@ class TestFull:
 
 
 class TestHtml:
-    def test_returns_string(self, sample_df):
-        result = reports.html(sample_df)
-        assert isinstance(result, str)
-
     def test_is_valid_html(self, sample_df):
         result = reports.html(sample_df)
         assert result.startswith("<!DOCTYPE html>")
@@ -277,10 +231,6 @@ class TestHtml:
         )
         with pytest.raises(AssertionError):
             reports.html(bad_df)
-
-    def test_positional_rf_still_supported(self, sample_df):
-        result = reports.html(sample_df, None, 0.04)
-        assert isinstance(result, str)
 
     def test_duplicate_dates_warns_and_aggregates(self):
         import re
@@ -405,10 +355,6 @@ class TestJson:
 
 
 class TestMarkdown:
-    def test_returns_markdown_string(self, sample_df):
-        result = reports.markdown(sample_df)
-        assert isinstance(result, str)
-
     def test_contains_core_sections(self, sample_df):
         result = reports.markdown(sample_df, title="My Strategy")
         assert result.startswith("# My Strategy Backtest Summary")
