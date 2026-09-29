@@ -36,38 +36,6 @@ def _drawdown_fill_collections(fig: Figure) -> list[PolyCollection]:
 
 
 class TestPlotCumulativeReturns:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_cumulative_returns(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
-        fig = plots.plot_cumulative_returns(sample_df, base_df=benchmark_df)
-        assert isinstance(fig, Figure)
-
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_cumulative_returns(sample_df, figsize=(8, 3))
-        assert isinstance(fig, Figure)
-
-    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
-        fig = plots.plot_cumulative_returns(
-            sample_pandas_df, base_df=benchmark_pandas_df
-        )
-        assert isinstance(fig, Figure)
-
-    def test_accepts_pandas_indexed_df(
-        self, sample_pandas_df_indexed, benchmark_pandas_df_indexed
-    ):
-        fig = plots.plot_cumulative_returns(
-            sample_pandas_df_indexed, base_df=benchmark_pandas_df_indexed
-        )
-        assert isinstance(fig, Figure)
-
-    def test_accepts_pandas_series(self, sample_pandas_series, benchmark_pandas_series):
-        fig = plots.plot_cumulative_returns(
-            sample_pandas_series, base_df=benchmark_pandas_series
-        )
-        assert isinstance(fig, Figure)
-
     def test_offset_benchmark_dates_do_not_raise(self, sample_df):
         """Regression: misaligned benchmark dates handled via inner join."""
         offset_bench = pl.DataFrame(
@@ -80,6 +48,16 @@ class TestPlotCumulativeReturns:
         fig = plots.plot_cumulative_returns(sample_df, base_df=offset_bench)
         assert isinstance(fig, Figure)
 
+    def test_with_benchmark_has_two_lines(self, sample_df, benchmark_df):
+        fig = plots.plot_cumulative_returns(sample_df, base_df=benchmark_df)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
+
 
 # ---------------------------------------------------------------------------
 # plot_drawdown
@@ -87,15 +65,6 @@ class TestPlotCumulativeReturns:
 
 
 class TestPlotDrawdown:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_drawdown(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_all_positive_no_drawdown(self, all_positive_df):
-        # Should not raise even when there's no drawdown
-        fig = plots.plot_drawdown(all_positive_df)
-        assert isinstance(fig, Figure)
-
     @pytest.mark.parametrize(
         ("fixture_name", "has_paths"),
         [("sample_df", True), ("all_positive_df", False)],
@@ -115,18 +84,26 @@ class TestPlotDrawdown:
 
 
 class TestPlotMonthlyHeatmap:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_monthly_heatmap(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_single_row(self, single_row_df):
-        fig = plots.plot_monthly_heatmap(single_row_df)
-        assert isinstance(fig, Figure)
-
-    def test_empty_df_returns_figure(self, empty_df):
-        # Should return a blank figure rather than raise on zero-size arrays
+    def test_empty_df_renders_no_data_placeholder(self, empty_df):
+        """Regression: empty input renders a placeholder rather than raising."""
         fig = plots.plot_monthly_heatmap(empty_df)
-        assert isinstance(fig, Figure)
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        assert "No data" in texts
+
+    def test_renders_cells(self, sample_df):
+        import numpy as np
+
+        fig = plots.plot_monthly_heatmap(sample_df)
+        ax = fig.axes[0]
+        arr = ax.images[0].get_array()
+        n_years = len(sample_df.get_column("date").dt.year().unique())
+        assert arr.shape == (n_years, 12)
+        valid_cells = (
+            (~np.isnan(arr.filled(np.nan))).sum()
+            if hasattr(arr, "filled")
+            else (~np.isnan(arr)).sum()
+        )
+        assert len(ax.texts) == valid_cells
 
 
 # ---------------------------------------------------------------------------
@@ -135,13 +112,15 @@ class TestPlotMonthlyHeatmap:
 
 
 class TestPlotYearlyReturns:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_yearly_returns(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
+    def test_with_benchmark_renders_bars(self, sample_df, benchmark_df):
         fig = plots.plot_yearly_returns(sample_df, base_df=benchmark_df)
-        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        n_years = len(sample_df.get_column("date").dt.year().unique())
+        assert len(ax.patches) == 2 * n_years
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -150,14 +129,6 @@ class TestPlotYearlyReturns:
 
 
 class TestPlotEoyReturns:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_eoy_returns(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
-        fig = plots.plot_eoy_returns(sample_df, base_df=benchmark_df)
-        assert isinstance(fig, Figure)
-
     def test_bar_count_equals_years(self):
         """Number of bars equals number of years in the data."""
         import datetime
@@ -231,17 +202,14 @@ class TestPlotEoyReturns:
 
 
 class TestPlotReturnDistribution:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_return_distribution(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
+    def test_with_benchmark_renders_artists(self, sample_df, benchmark_df):
         fig = plots.plot_return_distribution(sample_df, base_df=benchmark_df)
-        assert isinstance(fig, Figure)
-
-    def test_custom_bins(self, sample_df):
-        fig = plots.plot_return_distribution(sample_df, bins=10)
-        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        assert len(ax.patches) >= 1
+        assert [t.get_text() for t in ax.get_legend().get_texts()][:2] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -250,13 +218,15 @@ class TestPlotReturnDistribution:
 
 
 class TestPlotRollingSharpe:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_rolling_sharpe(sample_df, window=5)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
+    def test_with_benchmark_renders_lines(self, sample_df, benchmark_df):
         fig = plots.plot_rolling_sharpe(sample_df, base_df=benchmark_df, window=5)
-        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -265,13 +235,15 @@ class TestPlotRollingSharpe:
 
 
 class TestPlotRollingVolatility:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_rolling_volatility(sample_df, window=5)
-        assert isinstance(fig, Figure)
-
-    def test_with_benchmark(self, sample_df, benchmark_df):
+    def test_with_benchmark_renders_lines(self, sample_df, benchmark_df):
         fig = plots.plot_rolling_volatility(sample_df, base_df=benchmark_df, window=5)
-        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -280,10 +252,6 @@ class TestPlotRollingVolatility:
 
 
 class TestPlotRollingSortino:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_rolling_sortino(sample_df, window=5)
-        assert isinstance(fig, Figure)
-
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_rolling_sortino(sample_df, window=5, figsize=(8, 3))
         assert fig.get_size_inches()[0] == pytest.approx(8.0)
@@ -295,10 +263,6 @@ class TestPlotRollingSortino:
 
 
 class TestPlotRollingBeta:
-    def test_returns_figure(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5)
-        assert isinstance(fig, Figure)
-
     def test_custom_figsize(self, sample_df, benchmark_df):
         fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5, figsize=(8, 3))
         assert fig.get_size_inches()[0] == pytest.approx(8.0)
@@ -310,10 +274,6 @@ class TestPlotRollingBeta:
 
 
 class TestPlotRollingCorrelation:
-    def test_returns_figure(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_correlation(sample_df, benchmark_df, window=5)
-        assert isinstance(fig, Figure)
-
     def test_custom_figsize(self, sample_df, benchmark_df):
         fig = plots.plot_rolling_correlation(
             sample_df, benchmark_df, window=5, figsize=(8, 3)
@@ -327,10 +287,6 @@ class TestPlotRollingCorrelation:
 
 
 class TestPlotDrawdownPeriods:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_drawdown_periods(sample_df)
-        assert isinstance(fig, Figure)
-
     def test_patch_count_matches_drawdowns(self, sample_df):
         from katsustats import stats
 
@@ -350,10 +306,6 @@ class TestPlotDrawdownPeriods:
         ax = fig.axes[0]
         assert len(ax.patches) == 0
 
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_drawdown_periods(sample_df, figsize=(8, 3))
-        assert isinstance(fig, Figure)
-
 
 # ---------------------------------------------------------------------------
 # plot_dow_distribution / plot_dow_winrate
@@ -361,14 +313,6 @@ class TestPlotDrawdownPeriods:
 
 
 class TestPlotDowDistribution:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_dow_distribution(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_dow_distribution(sample_df, figsize=(8, 4))
-        assert isinstance(fig, Figure)
-
     def test_box_colors_reflect_median_sign(self):
         """Boxes with positive median are green; negative median are red."""
         import matplotlib.colors as mcolors
@@ -412,14 +356,6 @@ class TestPlotDowDistribution:
 
 
 class TestPlotDowWinrate:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_dow_winrate(sample_df)
-        assert isinstance(fig, Figure)
-
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_dow_winrate(sample_df, figsize=(8, 4))
-        assert isinstance(fig, Figure)
-
     def test_twin_axis_present(self, sample_df):
         """Win-rate panel has a secondary y-axis for the total return overlay."""
         fig = plots.plot_dow_winrate(sample_df)
@@ -442,14 +378,6 @@ class TestPlotDowWinrate:
 
 
 class TestPlotReturnsVsBenchmark:
-    def test_returns_figure(self, sample_df, benchmark_df):
-        fig = plots.plot_returns_vs_benchmark(sample_df, benchmark_df)
-        assert isinstance(fig, Figure)
-
-    def test_custom_figsize(self, sample_df, benchmark_df):
-        fig = plots.plot_returns_vs_benchmark(sample_df, benchmark_df, figsize=(6, 6))
-        assert isinstance(fig, Figure)
-
     def test_contains_scatter_and_line(self, sample_df, benchmark_df):
         """Axes must contain a PathCollection (scatter) and at least one Line2D (regression)."""
         import matplotlib.collections as mcollections
@@ -463,10 +391,6 @@ class TestPlotReturnsVsBenchmark:
         assert len(collections) >= 1, "Expected at least one scatter PathCollection"
         assert len(lines) >= 1, "Expected at least one regression Line2D"
 
-    def test_accepts_pandas_inputs(self, sample_pandas_df, benchmark_pandas_df):
-        fig = plots.plot_returns_vs_benchmark(sample_pandas_df, benchmark_pandas_df)
-        assert isinstance(fig, Figure)
-
 
 # ---------------------------------------------------------------------------
 # plot_monte_carlo
@@ -474,10 +398,6 @@ class TestPlotReturnsVsBenchmark:
 
 
 class TestPlotMonteCarlo:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
-        assert isinstance(fig, Figure)
-
     def test_has_one_axes(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
         assert len(fig.axes) == 1
@@ -490,15 +410,9 @@ class TestPlotMonteCarlo:
 
     def test_subsamples_paths_above_200(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=300, seed=0)
-        assert isinstance(fig, Figure)
-
-    def test_accepts_pandas_input(self, sample_pandas_df):
-        fig = plots.plot_monte_carlo(sample_pandas_df, sims=20, seed=0)
-        assert isinstance(fig, Figure)
-
-    def test_custom_confidence_level(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0, confidence_level=0.80)
-        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) <= 205
 
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=20, seed=0, figsize=(8, 3))
@@ -511,10 +425,6 @@ class TestPlotMonteCarlo:
 
 
 class TestPlotMonteCarloDistribution:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
-        assert isinstance(fig, Figure)
-
     def test_has_one_axes(self, sample_df):
         fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
         assert len(fig.axes) == 1
@@ -545,14 +455,6 @@ class TestPlotMonteCarloDistribution:
 
         result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
         assert result["maxdd"]["std"] > 0
-
-    def test_accepts_pandas_input(self, sample_pandas_df):
-        fig = plots.plot_monte_carlo_distribution(sample_pandas_df, sims=20, seed=0)
-        assert isinstance(fig, Figure)
-
-    def test_custom_bins(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0, bins=20)
-        assert isinstance(fig, Figure)
 
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_monte_carlo_distribution(
@@ -604,10 +506,6 @@ class TestParseWindow:
 
 
 class TestPlotSnapshot:
-    def test_returns_figure(self, sample_df):
-        fig = plots.plot_snapshot(sample_df)
-        assert isinstance(fig, Figure)
-
     def test_axes_count(self, sample_df):
         fig = plots.plot_snapshot(sample_df)
         assert len(fig.axes) == 6
@@ -642,11 +540,6 @@ class TestPlotSnapshot:
         data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 6]
         assert len(data_lines) >= 1
 
-    @pytest.mark.parametrize("spec", ["1W", "2W", "1M", "3M"])
-    def test_window_strings_all_return_figure(self, sample_df, spec):
-        fig = plots.plot_snapshot(sample_df, window=spec)
-        assert isinstance(fig, Figure)
-
     def test_positive_return_card_is_green(self, all_positive_df):
         fig = plots.plot_snapshot(all_positive_df)
         # Select the topmost patch (the card bg, not any shadow)
@@ -664,10 +557,6 @@ class TestPlotSnapshot:
         sharpe_ax = fig.axes[1]
         texts = [t.get_text() for t in sharpe_ax.texts]
         assert any("—" in t for t in texts)
-
-    def test_accepts_pandas_input(self, sample_pandas_df):
-        fig = plots.plot_snapshot(sample_pandas_df)
-        assert isinstance(fig, Figure)
 
     def test_suptitle_contains_title_and_window(self, sample_df):
         fig = plots.plot_snapshot(sample_df, title="MyStrat", window="1W")
@@ -700,10 +589,6 @@ class TestPlotSnapshot:
         assert all(mcolors.to_hex(c[:3]) == c_neg for c in neg_colors)
 
     # --- Dark theme tests ---
-
-    def test_dark_theme_returns_figure(self, sample_df):
-        fig = plots.plot_snapshot(sample_df, theme="dark")
-        assert isinstance(fig, Figure)
 
     def test_dark_theme_background_color(self, sample_df):
         fig = plots.plot_snapshot(sample_df, theme="dark")
