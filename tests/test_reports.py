@@ -39,6 +39,13 @@ class TestFull:
         result = reports.full(sample_df, show=False)
         assert result["summary"] == stats.summary_metrics_raw(sample_df)
 
+    def test_positional_rf_still_supported(self, sample_df):
+        # Guards the positional order (returns, benchmark, rf, ...): a reorder
+        # would silently apply 0.04 as something else instead of raising.
+        positional = reports.full(sample_df, None, 0.04, show=False)
+        keyword = reports.full(sample_df, benchmark=None, rf=0.04, show=False)
+        assert positional["summary"] == keyword["summary"]
+
     def test_figures_is_dict_of_figures(self, sample_df):
         import matplotlib.figure
 
@@ -159,6 +166,12 @@ class TestHtml:
     def test_title_appears_in_output(self, sample_df):
         result = reports.html(sample_df, title="My Strategy")
         assert "My Strategy" in result
+
+    def test_positional_rf_still_supported(self, sample_df):
+        # Guards the positional order (returns, benchmark, rf, ...).
+        positional = reports.html(sample_df, None, 0.04)
+        keyword = reports.html(sample_df, benchmark=None, rf=0.04)
+        assert positional == keyword
 
     def test_with_benchmark(self, sample_df, benchmark_df):
         result = reports.html(sample_df, benchmark=benchmark_df)

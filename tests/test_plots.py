@@ -48,6 +48,16 @@ class TestPlotCumulativeReturns:
         fig = plots.plot_cumulative_returns(sample_df, base_df=offset_bench)
         assert isinstance(fig, Figure)
 
+    def test_with_benchmark_has_two_lines(self, sample_df, benchmark_df):
+        fig = plots.plot_cumulative_returns(sample_df, base_df=benchmark_df)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
+
 
 # ---------------------------------------------------------------------------
 # plot_drawdown
@@ -73,9 +83,44 @@ class TestPlotDrawdown:
 # ---------------------------------------------------------------------------
 
 
+class TestPlotMonthlyHeatmap:
+    def test_empty_df_renders_no_data_placeholder(self, empty_df):
+        """Regression: empty input renders a placeholder rather than raising."""
+        fig = plots.plot_monthly_heatmap(empty_df)
+        texts = [t.get_text() for ax in fig.axes for t in ax.texts]
+        assert "No data" in texts
+
+    def test_renders_cells(self, sample_df):
+        import numpy as np
+
+        fig = plots.plot_monthly_heatmap(sample_df)
+        ax = fig.axes[0]
+        arr = ax.images[0].get_array()
+        n_years = len(sample_df.get_column("date").dt.year().unique())
+        assert arr.shape == (n_years, 12)
+        valid_cells = (
+            (~np.isnan(arr.filled(np.nan))).sum()
+            if hasattr(arr, "filled")
+            else (~np.isnan(arr)).sum()
+        )
+        assert len(ax.texts) == valid_cells
+
+
 # ---------------------------------------------------------------------------
 # plot_yearly_returns
 # ---------------------------------------------------------------------------
+
+
+class TestPlotYearlyReturns:
+    def test_with_benchmark_renders_bars(self, sample_df, benchmark_df):
+        fig = plots.plot_yearly_returns(sample_df, base_df=benchmark_df)
+        ax = fig.axes[0]
+        n_years = len(sample_df.get_column("date").dt.year().unique())
+        assert len(ax.patches) == 2 * n_years
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -156,14 +201,49 @@ class TestPlotEoyReturns:
 # ---------------------------------------------------------------------------
 
 
+class TestPlotReturnDistribution:
+    def test_with_benchmark_renders_artists(self, sample_df, benchmark_df):
+        fig = plots.plot_return_distribution(sample_df, base_df=benchmark_df)
+        ax = fig.axes[0]
+        assert len(ax.patches) >= 1
+        assert [t.get_text() for t in ax.get_legend().get_texts()][:2] == [
+            "Strategy",
+            "Benchmark",
+        ]
+
+
 # ---------------------------------------------------------------------------
 # plot_rolling_sharpe
 # ---------------------------------------------------------------------------
 
 
+class TestPlotRollingSharpe:
+    def test_with_benchmark_renders_lines(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_sharpe(sample_df, base_df=benchmark_df, window=5)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
+
+
 # ---------------------------------------------------------------------------
 # plot_rolling_volatility
 # ---------------------------------------------------------------------------
+
+
+class TestPlotRollingVolatility:
+    def test_with_benchmark_renders_lines(self, sample_df, benchmark_df):
+        fig = plots.plot_rolling_volatility(sample_df, base_df=benchmark_df, window=5)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) >= 2
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == [
+            "Strategy",
+            "Benchmark",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +407,12 @@ class TestPlotMonteCarlo:
         ax = fig.axes[0]
         lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
         assert len(lines) >= 2
+
+    def test_subsamples_paths_above_200(self, sample_df):
+        fig = plots.plot_monte_carlo(sample_df, sims=300, seed=0)
+        ax = fig.axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
+        assert len(lines) <= 205
 
     def test_custom_figsize(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=20, seed=0, figsize=(8, 3))
