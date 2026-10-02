@@ -28,7 +28,7 @@ def _load(path: str, date_col: str, returns_col: str) -> pl.DataFrame:
             df = pl.read_parquet(p)
         elif suffix == ".csv":
             df = pl.read_csv(p, try_parse_dates=True)
-    except Exception as e:
+    except (FileNotFoundError, OSError, pl.exceptions.PolarsError) as e:
         sys.exit(f"{p}: Failed to parse file. Error: {e}")
 
     missing = [c for c in [date_col, returns_col] if c not in df.columns]
