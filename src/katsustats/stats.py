@@ -753,19 +753,22 @@ def regime_stats(
     Returns one row for each of:
         bull_low_vol, bull_high_vol, bear_low_vol, bear_high_vol
     """
-    assert base_df is not None, "base_df is required for regime_stats"
-    assert trend_window > 0, "trend_window must be positive"
-    assert vol_window > 0, "vol_window must be positive"
+    if base_df is None:
+        raise ValueError("base_df is required for regime_stats")
+    if trend_window <= 0:
+        raise ValueError("trend_window must be positive")
+    if vol_window <= 0:
+        raise ValueError("vol_window must be positive")
 
     df = ensure_polars(df, name="df")
     base_df = ensure_polars(base_df, name="base_df")
 
     df = df.sort(COL_DATE)
     base_df = base_df.sort(COL_DATE)
-    assert df[COL_DATE].n_unique() == df.height, "df must have one row per date"
-    assert base_df[COL_DATE].n_unique() == base_df.height, (
-        "base_df must have one row per date"
-    )
+    if df[COL_DATE].n_unique() != df.height:
+        raise ValueError("df must have one row per date")
+    if base_df[COL_DATE].n_unique() != base_df.height:
+        raise ValueError("base_df must have one row per date")
 
     base_features = base_df.with_columns(
         ((pl.col(COL_RETURNS) + 1).cum_prod() - 1).alias("_cumret"),

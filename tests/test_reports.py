@@ -79,12 +79,12 @@ class TestFull:
         bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             reports.full(bad_df, show=False)
 
     def test_invalid_input_missing_date_column(self):
         bad_df = pl.DataFrame({"day": ["2023-01-02"], "returns": [0.01]})
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             reports.full(bad_df, show=False)
 
     def test_duplicate_dates_warns_and_aggregates(self):
@@ -242,7 +242,7 @@ class TestHtml:
         bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
             pl.col("date").cast(pl.Date)
         )
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             reports.html(bad_df)
 
     def test_duplicate_dates_warns_and_aggregates(self):
