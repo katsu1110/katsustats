@@ -12,6 +12,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Update your DataFrames: `df.rename({"pnl": "returns"})`.
 - **Parameter rename**: `reports.full()` and `reports.html()` now accept
   `returns` (was `pnl`) and `benchmark` (was `base_pnl`).
+- **Validation errors changed type**: input validation in `ensure_polars()`,
+  `reports` (`_validate_and_sort`), and `stats.regime_stats()` now raises
+  `ValueError` instead of `AssertionError`; these checks also run under
+  `python -O`. Catch `ValueError` where `AssertionError` was caught before.
 
 ## [0.1.0] — 2024-01-01
 

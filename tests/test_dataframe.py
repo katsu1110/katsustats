@@ -64,7 +64,7 @@ def test_ensure_polars_invalid_type() -> None:
 
 
 def test_ensure_polars_missing_columns() -> None:
-    """Test that a pandas DataFrame missing columns raises an AssertionError."""
+    """Test that a pandas DataFrame missing columns raises a ValueError."""
     df = pd.DataFrame({"price": [1, 2]})
     with pytest.raises(ValueError, match="df is missing columns"):
         ensure_polars(df)

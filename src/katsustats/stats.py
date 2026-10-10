@@ -755,9 +755,10 @@ def regime_stats(
     """
     if base_df is None:
         raise ValueError("base_df is required for regime_stats")
-    if trend_window <= 0:
+    # `not > 0` rather than `<= 0` so NaN windows fail too
+    if not trend_window > 0:
         raise ValueError("trend_window must be positive")
-    if vol_window <= 0:
+    if not vol_window > 0:
         raise ValueError("vol_window must be positive")
 
     df = ensure_polars(df, name="df")
