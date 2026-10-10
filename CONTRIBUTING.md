@@ -36,7 +36,7 @@ CI enforces both checks on every pull request.
 - Prefer functions over introducing new public classes; typing-only/internal classes (e.g. `Protocol`s) are allowed where appropriate
 - snake_case function names; `_` prefix for private helpers
 - Public functions should have clear docstrings; use one-line or multi-line docstrings as appropriate
-- Validate inputs explicitly and follow existing patterns; both `assert` and `raise ValueError` are used in the codebase where appropriate
+- Validate inputs explicitly with `raise ValueError` in library code (asserts are stripped under `python -O`); CLI errors use `sys.exit()` with a user-facing message
 - Plot styling goes through the shared `_apply_style()` / `_add_title()` helpers in `plots.py`
 - Keep examples self-contained — no helper imports between example scripts
 
