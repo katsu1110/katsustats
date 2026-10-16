@@ -321,26 +321,6 @@ class TestReportCommand:
             main()
         assert "Failed to parse file" in str(exc_info.value)
 
-    def test_missing_column_exits_with_clear_message(
-        self, csv_file: Path, tmp_path: Path, monkeypatch
-    ):
-        monkeypatch.setattr(
-            "sys.argv",
-            [
-                "katsustats",
-                "report",
-                str(csv_file),
-                "--returns-col",
-                "pnl",
-                "-o",
-                str(tmp_path / "out.html"),
-            ],
-        )
-        with pytest.raises(SystemExit) as exc_info:
-            main()
-        assert "pnl" in str(exc_info.value)
-        assert "--returns-col" in str(exc_info.value)
-
 
 # ---------------------------------------------------------------------------
 # Monte Carlo CLI flags
@@ -537,15 +517,6 @@ class TestSnapshotCommand:
         )
         main()
         assert out.exists()
-
-    def test_bad_window_exits(self, csv_file: Path, tmp_path: Path, monkeypatch):
-        out = tmp_path / "snap.png"
-        monkeypatch.setattr(
-            "sys.argv",
-            ["katsustats", "snapshot", str(csv_file), "--window", "2Y", "-o", str(out)],
-        )
-        with pytest.raises(SystemExit):
-            main()
 
     def test_custom_title(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "snap.png"

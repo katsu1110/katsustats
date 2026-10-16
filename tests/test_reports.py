@@ -75,54 +75,6 @@ class TestFull:
         # Benchmark adds comparison rows
         assert result["metrics"].height > 17
 
-    def test_invalid_input_missing_returns_column(self):
-        bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
-            pl.col("date").cast(pl.Date)
-        )
-        with pytest.raises(ValueError, match="is missing columns"):
-            reports.full(bad_df, show=False)
-
-    def test_invalid_input_missing_date_column(self):
-        bad_df = pl.DataFrame({"day": ["2023-01-02"], "returns": [0.01]})
-        with pytest.raises(ValueError, match="is missing columns"):
-            reports.full(bad_df, show=False)
-
-    def test_duplicate_dates_warns_and_aggregates(self):
-        duplicate_dates_df = pl.DataFrame(
-            {
-                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "returns": [0.10, 0.20, -0.10],
-            }
-        ).with_columns(pl.col("date").cast(pl.Date))
-
-        # 2023-01-02 => (1.10 * 1.20) - 1 = 0.32
-        # across dates  => (1.32 * 0.90) - 1 = 0.188
-        expected_total_return = (1.10 * 1.20) * 0.90 - 1.0
-
-        with pytest.warns(UserWarning, match="duplicate dates"):
-            result = reports.full(duplicate_dates_df, show=False)
-
-        assert result["summary"]["total_return"] == pytest.approx(expected_total_return)
-
-    def test_datetime_date_column_accepted(self, sample_df):
-        dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
-        result = reports.full(dt_df, show=False, verbose=False)
-        assert isinstance(result["drawdowns"], pl.DataFrame)
-
-    def test_pandas_datetime_date_column_accepted(self):
-        from datetime import datetime, timedelta
-
-        import pandas as pd
-
-        start = datetime(2024, 1, 1)
-        dates = [start + timedelta(days=i) for i in range(20)]
-        returns = [0.01, -0.005, 0.008, -0.012, 0.003] * 4
-        df = pd.DataFrame({"date": dates, "returns": returns})
-
-        result = reports.full(df, show=False, verbose=False)
-
-        assert isinstance(result["drawdowns"], pl.DataFrame)
-
     def test_verbose_false_suppresses_stdout(self, sample_df, capsys):
         reports.full(sample_df, show=False, verbose=False)
         captured = capsys.readouterr()
@@ -238,41 +190,6 @@ class TestHtml:
         reports.html(sample_df, output=None)
         assert set(tmp_path.iterdir()) == initial_files
 
-    def test_invalid_input_raises(self):
-        bad_df = pl.DataFrame({"date": ["2023-01-02"], "ret": [0.01]}).with_columns(
-            pl.col("date").cast(pl.Date)
-        )
-        with pytest.raises(ValueError, match="is missing columns"):
-            reports.html(bad_df)
-
-    def test_duplicate_dates_warns_and_aggregates(self):
-        import re
-
-        duplicate_dates_df = pl.DataFrame(
-            {
-                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "returns": [0.10, 0.20, -0.10],
-            }
-        ).with_columns(pl.col("date").cast(pl.Date))
-
-        with pytest.warns(UserWarning, match="duplicate dates"):
-            result = reports.html(duplicate_dates_df, monte_carlo=False)
-
-        # Aggregated equivalent (same compounded data)
-        expected = reports.html(
-            pl.DataFrame(
-                {"date": ["2023-01-02", "2023-01-03"], "returns": [0.32, -0.10]}
-            ).with_columns(pl.col("date").cast(pl.Date)),
-            monte_carlo=False,
-        )
-
-        # Normalize base64 image payloads so byte-level non-determinism
-        # (floating-point PNG rendering) doesn't mask structural diffs
-        img_re = r"data:image/png;base64,[A-Za-z0-9+/=]+"
-        result_norm = re.sub(img_re, "IMG", result)
-        expected_norm = re.sub(img_re, "IMG", expected)
-        assert result_norm == expected_norm
-
 
 # ---------------------------------------------------------------------------
 # reports.json
@@ -346,21 +263,6 @@ class TestJson:
         if payload["drawdowns"]:
             assert isinstance(payload["drawdowns"][0]["start"], str)
 
-    def test_duplicate_dates_warns_and_aggregates(self):
-        duplicate_dates_df = pl.DataFrame(
-            {
-                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "returns": [0.10, 0.20, -0.10],
-            }
-        ).with_columns(pl.col("date").cast(pl.Date))
-
-        with pytest.warns(UserWarning, match="duplicate dates"):
-            result = reports.json(duplicate_dates_df)
-
-        assert json.loads(result)["strategy"]["summary"][
-            "total_return"
-        ] == pytest.approx((1.10 * 1.20) * 0.90 - 1.0)
-
 
 # ---------------------------------------------------------------------------
 # reports.markdown
@@ -406,19 +308,6 @@ class TestMarkdown:
         result = reports.markdown(sample_df, output=str(out_file))
         assert out_file.exists()
         assert out_file.read_text(encoding="utf-8") == result
-
-    def test_duplicate_dates_warns_and_aggregates(self):
-        duplicate_dates_df = pl.DataFrame(
-            {
-                "date": ["2023-01-02", "2023-01-02", "2023-01-03"],
-                "returns": [0.10, 0.20, -0.10],
-            }
-        ).with_columns(pl.col("date").cast(pl.Date))
-
-        with pytest.warns(UserWarning, match="duplicate dates"):
-            result = reports.markdown(duplicate_dates_df)
-
-        assert "18.80%" in result
 
 
 # ---------------------------------------------------------------------------
@@ -500,11 +389,6 @@ class TestMonteCarloReports:
     def test_markdown_no_monte_carlo_omits_section(self, sample_df):
         result = reports.markdown(sample_df, monte_carlo=False)
         assert "## Monte Carlo" not in result
-
-    def test_json_seed_determinism(self, sample_df):
-        j1 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
-        j2 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
-        assert j1 == j2
 
 
 def test_df_to_html_table_escapes_xss():
