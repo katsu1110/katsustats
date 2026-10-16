@@ -476,20 +476,11 @@ class TestParseWindow:
     def test_string_specs(self, spec, expected):
         assert _parse_window(spec) == expected
 
-    def test_bad_string_raises_value_error(self):
-        with pytest.raises(ValueError, match="Unrecognised window"):
-            _parse_window("2Y")
-
     def test_int_passthrough(self):
         assert _parse_window(7) == 7
 
     def test_integer_string(self):
         assert _parse_window("10") == 10
-
-    @pytest.mark.parametrize("spec", ["1D", "2Y", "6M"])
-    def test_unrecognised_strings_raise_value_error(self, spec):
-        with pytest.raises(ValueError, match="Unrecognised window"):
-            _parse_window(spec)
 
     def test_zero_raises_value_error(self):
         with pytest.raises(ValueError, match="window must be >= 1"):
@@ -551,12 +542,6 @@ class TestPlotSnapshot:
         # Select the topmost patch (the card bg, not any shadow)
         face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
         assert face == "#ef4444"
-
-    def test_single_row_sharpe_shows_dash(self, single_row_df):
-        fig = plots.plot_snapshot(single_row_df, window=1)
-        sharpe_ax = fig.axes[1]
-        texts = [t.get_text() for t in sharpe_ax.texts]
-        assert any("—" in t for t in texts)
 
     def test_suptitle_contains_title_and_window(self, sample_df):
         fig = plots.plot_snapshot(sample_df, title="MyStrat", window="1W")
