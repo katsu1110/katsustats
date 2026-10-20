@@ -476,6 +476,11 @@ class TestParseWindow:
     def test_string_specs(self, spec, expected):
         assert _parse_window(spec) == expected
 
+    @pytest.mark.parametrize("spec", ["1D", "2Y", "6M"])
+    def test_unrecognised_strings_raise_value_error(self, spec):
+        with pytest.raises(ValueError, match="Unrecognised window"):
+            _parse_window(spec)
+
     def test_int_passthrough(self):
         assert _parse_window(7) == 7
 

@@ -1049,6 +1049,58 @@ class TestMonteCarloMethod:
 # ---------------------------------------------------------------------------
 
 
+class TestEmptyInputHardening:
+    def test_best_day_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.best_day(empty_df))
+
+    def test_worst_day_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.worst_day(empty_df))
+
+    def test_value_at_risk_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.value_at_risk(empty_df))
+
+    def test_skewness_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.skewness(empty_df))
+
+    def test_kurtosis_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.kurtosis(empty_df))
+
+    def test_total_return_empty_returns_nan(self, empty_df):
+        assert math.isnan(stats.total_return(empty_df))
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "cagr",
+            "cvar",
+            "omega_ratio",
+            "ulcer_index",
+            "martin_ratio",
+            "gain_to_pain",
+            "kelly_criterion",
+            "probabilistic_sharpe",
+            "payoff_ratio",
+            "best_month",
+            "worst_month",
+            "best_year",
+            "worst_year",
+            "exposure",
+            "positive_months_pct",
+            "positive_years_pct",
+        ],
+    )
+    def test_empty_returns_nan(self, empty_df, name):
+        # Every scalar metric must degrade to NaN on an empty frame, not raise
+        # and not silently return 0.0/inf.
+        assert math.isnan(getattr(stats, name)(empty_df))
+
+    def test_information_ratio_single_row_returns_nan(self):
+        df = pl.DataFrame({"date": ["2023-01-02"], "returns": [0.01]}).with_columns(
+            pl.col("date").cast(pl.Date)
+        )
+        assert math.isnan(stats.information_ratio(df, df))
+
+
 # ---------------------------------------------------------------------------
 # Risk-Adjusted Ratios (#14)
 # ---------------------------------------------------------------------------
@@ -1118,6 +1170,9 @@ class TestKellyCriterion:
         # Higher rf → lower Kelly
         assert k1 < k0
 
+    def test_single_row(self, single_row_df):
+        assert math.isnan(stats.kelly_criterion(single_row_df))
+
 
 class TestProbabilisticSharpe:
     def test_in_unit_interval(self, sample_df):
@@ -1129,6 +1184,9 @@ class TestProbabilisticSharpe:
         psr1 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=2.0)
         # Higher benchmark → lower PSR
         assert psr1 < psr0
+
+    def test_single_row(self, single_row_df):
+        assert math.isnan(stats.probabilistic_sharpe(single_row_df))
 
 
 class TestPayoffRatio:
