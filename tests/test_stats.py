@@ -60,6 +60,10 @@ class TestSharpe:
         # Higher risk-free rate → lower Sharpe (for positive excess returns)
         assert s0 != s1
 
+    def test_single_row_returns_nan(self, single_row_df):
+        # std of 1 element (ddof=1) is undefined → NaN, not an exception
+        assert math.isnan(stats.sharpe(single_row_df))
+
 
 class TestSortino:
     def test_all_positive_returns_inf(self, all_positive_df):
@@ -405,6 +409,14 @@ class TestRollingDrawdown:
         valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
         assert all(abs(v) < 1e-10 for v in valid)
 
+    def test_values_negative_or_zero_after_window(self, sample_df):
+        window = 5
+        result = stats.rolling_drawdown(sample_df, window=window)
+        vals = result.get_column("rolling_drawdown").to_list()
+        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
+        assert valid
+        assert all(v <= 0 for v in valid)
+
 
 class TestRollingVolatilityRatio:
     def test_nan_before_window(self, sample_df, benchmark_df):
@@ -496,6 +508,25 @@ class TestRegimeStats:
     def test_requires_benchmark(self, sample_df):
         with pytest.raises(ValueError, match="base_df is required for regime_stats"):
             stats.regime_stats(sample_df, None)
+
+    def test_schema_and_regime_order(self, sample_df, benchmark_df):
+        result = stats.regime_stats(
+            sample_df, benchmark_df, trend_window=3, vol_window=3
+        )
+        assert set(result.columns) == {
+            "regime",
+            "n_days",
+            "cagr",
+            "sharpe",
+            "max_drawdown",
+            "win_rate",
+        }
+        assert result.get_column("regime").to_list() == [
+            "bull_low_vol",
+            "bull_high_vol",
+            "bear_low_vol",
+            "bear_high_vol",
+        ]
 
     def test_large_windows_leave_short_series_with_nan_metrics(
         self, sample_df, benchmark_df
