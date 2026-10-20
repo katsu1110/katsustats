@@ -544,7 +544,7 @@ class TestSnapshotCommand:
             "sys.argv",
             ["katsustats", "snapshot", str(csv_file), "--window", "2Y", "-o", str(out)],
         )
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit, match="Unrecognised window"):
             main()
 
     def test_custom_title(self, csv_file: Path, tmp_path: Path, monkeypatch):
