@@ -80,6 +80,11 @@ class TestFull:
         captured = capsys.readouterr()
         assert captured.out == ""
 
+    def test_datetime_date_column_accepted(self, sample_df):
+        dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
+        result = reports.full(dt_df, show=False, verbose=False)
+        assert isinstance(result["drawdowns"], pl.DataFrame)
+
     def test_verbose_true_prints_output(self, sample_df, capsys):
         reports.full(sample_df, show=False, verbose=True)
         captured = capsys.readouterr()
@@ -262,6 +267,11 @@ class TestJson:
         assert payload["metadata"]["start_date"] == "2023-01-02"
         if payload["drawdowns"]:
             assert isinstance(payload["drawdowns"][0]["start"], str)
+
+    def test_mc_seed_reproduces_identical_json(self, sample_df):
+        j1 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
+        j2 = reports.json(sample_df, monte_carlo=True, mc_sims=50, mc_seed=42)
+        assert j1 == j2
 
 
 # ---------------------------------------------------------------------------

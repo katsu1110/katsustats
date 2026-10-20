@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import statistics
 
 import polars as pl
 import pytest
@@ -39,6 +40,10 @@ class TestVolatility:
     def test_all_positive_nonzero(self, all_positive_df):
         # Even all-positive returns have non-zero variance
         assert stats.volatility(all_positive_df) > 0
+
+    def test_single_row_returns_nan(self, single_row_df):
+        # std of 1 element (ddof=1) is undefined; should return nan not raise
+        assert math.isnan(stats.volatility(single_row_df))
 
 
 class TestSharpe:
@@ -233,8 +238,12 @@ class TestSkewnessKurtosis:
 class TestDrawdownDetails:
     def test_max_dd_negative(self, sample_df):
         dd = stats.drawdown_details(sample_df)
-        if dd.height > 0:
-            assert all(v <= 0 for v in dd.get_column("max_dd").to_list())
+        assert dd.height > 0
+        assert all(v <= 0 for v in dd.get_column("max_dd").to_list())
+
+    def test_no_drawdown_empty(self, all_positive_df):
+        dd = stats.drawdown_details(all_positive_df)
+        assert dd.height == 0
 
     def test_top_n_respected(self, sample_df):
         dd = stats.drawdown_details(sample_df, top_n=2)
@@ -258,6 +267,16 @@ class TestDrawdownDetails:
             assert dd.schema["trough"] == pl.Date
             assert dd.schema["recovery"] == pl.Date
 
+    def test_datetime_date_column_accepted(self, sample_df):
+        dt_df = sample_df.with_columns(pl.col("date").cast(pl.Datetime))
+        dd = stats.drawdown_details(dt_df)
+        assert isinstance(dd, pl.DataFrame)
+        if dd.height > 0:
+            assert dd.schema["start"] == pl.Date
+            assert dd.schema["trough"] == pl.Date
+            assert dd.schema["recovery"] == pl.Date
+        assert dd.height == stats.drawdown_details(sample_df).height
+
 
 class TestDayOfWeekStats:
     def test_all_weekdays_represented(self, sample_df):
@@ -267,7 +286,48 @@ class TestDayOfWeekStats:
         assert dow_values == [1, 2, 3, 4, 5]
 
 
+class TestRollingSharpe:
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_sharpe(sample_df, window=window)
+        vals = result.get_column("rolling_sharpe").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_known_value_matches_manual_calculation(self, sample_df):
+        window = 5
+        result = stats.rolling_sharpe(sample_df, window=window)
+        vals = result.get_column("rolling_sharpe").to_list()
+        tail = sample_df.get_column("returns").to_list()[-window:]
+        expected = (sum(tail) / len(tail)) / statistics.stdev(tail) * (252**0.5)
+        assert vals[-1] == pytest.approx(expected)
+
+
+class TestRollingVolatility:
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_volatility(sample_df, window=window)
+        vals = result.get_column("rolling_vol").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
+    def test_known_value_matches_manual_calculation(self, sample_df):
+        window = 5
+        result = stats.rolling_volatility(sample_df, window=window)
+        vals = result.get_column("rolling_vol").to_list()
+        tail = sample_df.get_column("returns").to_list()[-window:]
+        expected = statistics.stdev(tail) * (252**0.5)
+        assert vals[-1] == pytest.approx(expected)
+
+
 class TestRollingSortino:
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_sortino(sample_df, window=window)
+        vals = result.get_column("rolling_sortino").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
     def test_values_finite_after_window(self, sample_df):
         window = 5
         result = stats.rolling_sortino(sample_df, window=window)
@@ -285,6 +345,13 @@ class TestRollingSortino:
 
 
 class TestRollingBeta:
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_beta(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_beta").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
     def test_unequal_lengths(self, sample_df, benchmark_df):
         shorter = benchmark_df.head(10)
         result = stats.rolling_beta(sample_df, shorter, window=5)
@@ -300,6 +367,13 @@ class TestRollingBeta:
 
 
 class TestRollingCorrelation:
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_correlation").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
     def test_in_range(self, sample_df, benchmark_df):
         window = 5
         result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
@@ -317,6 +391,13 @@ class TestRollingCorrelation:
 
 
 class TestRollingDrawdown:
+    def test_nan_before_window(self, sample_df):
+        window = 5
+        result = stats.rolling_drawdown(sample_df, window=window)
+        vals = result.get_column("rolling_drawdown").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
     def test_all_positive_returns_zero(self, all_positive_df):
         window = 5
         result = stats.rolling_drawdown(all_positive_df, window=window)
@@ -326,6 +407,13 @@ class TestRollingDrawdown:
 
 
 class TestRollingVolatilityRatio:
+    def test_nan_before_window(self, sample_df, benchmark_df):
+        window = 5
+        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
+        vals = result.get_column("rolling_vol_ratio").to_list()
+        # Standard trailing window: first window-1 positions are null
+        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
+
     def test_values_finite_after_window(self, sample_df, benchmark_df):
         window = 5
         result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
@@ -594,6 +682,9 @@ class TestConsecutiveWins:
     def test_all_positive(self, all_positive_df):
         assert stats.consecutive_wins(all_positive_df) == all_positive_df.height
 
+    def test_empty_df_returns_zero(self, empty_df):
+        assert stats.consecutive_wins(empty_df) == 0
+
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -620,6 +711,9 @@ class TestConsecutiveLosses:
 
     def test_all_negative(self, all_negative_df):
         assert stats.consecutive_losses(all_negative_df) == all_negative_df.height
+
+    def test_empty_df_returns_zero(self, empty_df):
+        assert stats.consecutive_losses(empty_df) == 0
 
     def test_known_value(self):
         df = pl.DataFrame(
@@ -806,6 +900,57 @@ class TestPeriodPerformanceRaw:
         for entry in raw.values():
             assert math.isnan(entry["strategy"])
 
+    def test_pandas_intraday_inputs_are_aggregated_to_daily_before_join(self):
+        from datetime import datetime, time, timedelta
+
+        import pandas as pd
+
+        num_days = 10
+        start = datetime(2024, 1, 1)
+        days = [start + timedelta(days=i) for i in range(num_days)]
+        intraday_dates = [
+            datetime.combine(day.date(), session)
+            for day in days
+            for session in (time(9, 30), time(16, 0))
+        ]
+        strategy_session_returns = [0.001, 0.002]
+        benchmark_session_returns = [0.0005, 0.001]
+        daily_strategy_return = (
+            (1 + strategy_session_returns[0]) * (1 + strategy_session_returns[1])
+        ) - 1
+        daily_benchmark_return = (
+            (1 + benchmark_session_returns[0]) * (1 + benchmark_session_returns[1])
+        ) - 1
+        intraday_df = pd.DataFrame(
+            {"date": intraday_dates, "returns": strategy_session_returns * num_days}
+        )
+        intraday_base_df = pd.DataFrame(
+            {"date": intraday_dates, "returns": benchmark_session_returns * num_days}
+        )
+        daily_df = pd.DataFrame(
+            {
+                "date": [day.date() for day in days],
+                "returns": [daily_strategy_return] * num_days,
+            }
+        )
+        daily_base_df = pd.DataFrame(
+            {
+                "date": [day.date() for day in days],
+                "returns": [daily_benchmark_return] * num_days,
+            }
+        )
+
+        with pytest.warns(UserWarning, match="duplicate dates"):
+            raw = stats.period_performance_raw(intraday_df, intraday_base_df)
+        expected = stats.period_performance_raw(daily_df, daily_base_df)
+
+        for label in raw:
+            for key in raw[label]:
+                if math.isnan(expected[label][key]):
+                    assert math.isnan(raw[label][key])
+                else:
+                    assert raw[label][key] == pytest.approx(expected[label][key])
+
 
 class TestPeriodPerformance:
     def test_columns_without_benchmark(self, sample_df):
@@ -877,6 +1022,11 @@ class TestMonteCarloPaths:
         r2 = stats.monte_carlo_paths(sample_df, sims=20, seed=2)
         assert not r1.equals(r2)
 
+    def test_same_seed_reproduces_paths(self, sample_df):
+        r1 = stats.monte_carlo_paths(sample_df, sims=20, seed=7)
+        r2 = stats.monte_carlo_paths(sample_df, sims=20, seed=7)
+        assert r1.equals(r2)
+
     def test_sims_1_returns_only_original(self, sample_df):
         result = stats.monte_carlo_paths(sample_df, sims=1, seed=0)
         assert result.columns == ["step", "sim_0"]
@@ -942,6 +1092,17 @@ class TestMonteCarloSummary:
     def test_seed_recorded(self, sample_df):
         result = stats.monte_carlo_summary(sample_df, sims=10, seed=99)
         assert result["seed"] == 99
+
+    def test_same_seed_reproduces_summary(self, sample_df):
+        r1 = stats.monte_carlo_summary(sample_df, sims=50, seed=42)
+        r2 = stats.monte_carlo_summary(sample_df, sims=50, seed=42)
+        assert r1 == r2
+
+    @pytest.mark.parametrize("method", ["bootstrap", "shuffle"])
+    def test_same_seed_reproduces_summary_per_method(self, sample_df, method):
+        r1 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method=method)
+        r2 = stats.monte_carlo_summary(sample_df, sims=50, seed=42, method=method)
+        assert r1 == r2
 
 
 # ---------------------------------------------------------------------------

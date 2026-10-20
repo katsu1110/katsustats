@@ -548,6 +548,12 @@ class TestPlotSnapshot:
         face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
         assert face == "#ef4444"
 
+    def test_single_row_sharpe_shows_dash(self, single_row_df):
+        fig = plots.plot_snapshot(single_row_df, window=1)
+        sharpe_ax = fig.axes[1]
+        texts = [t.get_text() for t in sharpe_ax.texts]
+        assert any("—" in t for t in texts)
+
     def test_suptitle_contains_title_and_window(self, sample_df):
         fig = plots.plot_snapshot(sample_df, title="MyStrat", window="1W")
         sup = fig._suptitle.get_text()
