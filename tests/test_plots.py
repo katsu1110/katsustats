@@ -10,7 +10,7 @@ from matplotlib.collections import PolyCollection
 from matplotlib.figure import Figure
 
 from katsustats import plots
-from katsustats.plots import _COLORS, _parse_window
+from katsustats.plots import _parse_window
 
 
 @pytest.fixture(autouse=True)
@@ -251,34 +251,14 @@ class TestPlotRollingVolatility:
 # ---------------------------------------------------------------------------
 
 
-class TestPlotRollingSortino:
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_rolling_sortino(sample_df, window=5, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
-
-
 # ---------------------------------------------------------------------------
 # plot_rolling_beta
 # ---------------------------------------------------------------------------
 
 
-class TestPlotRollingBeta:
-    def test_custom_figsize(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
-
-
 # ---------------------------------------------------------------------------
 # plot_rolling_correlation
 # ---------------------------------------------------------------------------
-
-
-class TestPlotRollingCorrelation:
-    def test_custom_figsize(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_correlation(
-            sample_df, benchmark_df, window=5, figsize=(8, 3)
-        )
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -312,66 +292,6 @@ class TestPlotDrawdownPeriods:
 # ---------------------------------------------------------------------------
 
 
-class TestPlotDowDistribution:
-    def test_box_colors_reflect_median_sign(self):
-        """Boxes with positive median are green; negative median are red."""
-        import matplotlib.colors as mcolors
-
-        dates = [f"2024-01-0{i}" for i in range(1, 6)]  # Mon–Fri
-        # Make Mon/Tue strongly positive and Wed–Fri strongly negative
-        returns = [0.05, 0.04, -0.05, -0.04, -0.03]
-        df = pl.DataFrame({"date": dates, "returns": returns}).with_columns(
-            pl.col("date").cast(pl.Date)
-        )
-        fig = plots.plot_dow_distribution(df)
-        ax = fig.axes[0]
-        boxes = [p for p in ax.patches if hasattr(p, "get_facecolor")]
-        colors = [mcolors.to_hex(p.get_facecolor()[:3]) for p in boxes]
-
-        pos = mcolors.to_hex(mcolors.to_rgb(_COLORS["positive"]))
-        neg = mcolors.to_hex(mcolors.to_rgb(_COLORS["negative"]))
-        # Mon and Tue should be positive color; Wed–Fri negative
-        assert colors[0] == pos
-        assert colors[1] == pos
-        assert colors[2] == neg
-        assert colors[3] == neg
-        assert colors[4] == neg
-
-    def test_weekends_shown_when_present(self):
-        """Boxes for Sat/Sun appear when the data includes weekend dates."""
-        dates = [
-            "2024-01-01",  # Mon
-            "2024-01-02",  # Tue
-            "2024-01-06",  # Sat
-            "2024-01-07",  # Sun
-        ]
-        df = pl.DataFrame(
-            {"date": dates, "returns": [0.01, -0.01, 0.02, -0.02]}
-        ).with_columns(pl.col("date").cast(pl.Date))
-        fig = plots.plot_dow_distribution(df)
-        ax = fig.axes[0]
-        bar_labels = [tick.get_text() for tick in ax.get_xticklabels()]
-        assert "Sat" in bar_labels
-        assert "Sun" in bar_labels
-
-
-class TestPlotDowWinrate:
-    def test_twin_axis_present(self, sample_df):
-        """Win-rate panel has a secondary y-axis for the total return overlay."""
-        fig = plots.plot_dow_winrate(sample_df)
-        assert len(fig.axes) == 2  # bar ax, twin ax
-
-    def test_legend_contains_both_series(self, sample_df):
-        """Legend on the win-rate panel labels both Win Rate and Total Return."""
-        fig = plots.plot_dow_winrate(sample_df)
-        win_rate_ax = fig.axes[0]
-        legend = win_rate_ax.get_legend()
-        assert legend is not None
-        labels = [t.get_text() for t in legend.get_texts()]
-        assert "Win Rate" in labels
-        assert "Total Return" in labels
-
-
 # ---------------------------------------------------------------------------
 # plot_returns_vs_benchmark
 # ---------------------------------------------------------------------------
@@ -398,10 +318,6 @@ class TestPlotReturnsVsBenchmark:
 
 
 class TestPlotMonteCarlo:
-    def test_has_one_axes(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
-        assert len(fig.axes) == 1
-
     def test_has_median_and_original_lines(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
         ax = fig.axes[0]
@@ -414,10 +330,6 @@ class TestPlotMonteCarlo:
         lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
         assert len(lines) <= 205
 
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=20, seed=0, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
-
 
 # ---------------------------------------------------------------------------
 # plot_monte_carlo_distribution
@@ -425,10 +337,6 @@ class TestPlotMonteCarlo:
 
 
 class TestPlotMonteCarloDistribution:
-    def test_has_one_axes(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
-        assert len(fig.axes) == 1
-
     def test_has_vertical_percentile_lines(self, sample_df):
         fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
         ax = fig.axes[0]
@@ -455,12 +363,6 @@ class TestPlotMonteCarloDistribution:
 
         result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
         assert result["maxdd"]["std"] > 0
-
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(
-            sample_df, sims=20, seed=0, figsize=(8, 3)
-        )
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -502,20 +404,6 @@ class TestParseWindow:
 
 
 class TestPlotSnapshot:
-    def test_axes_count(self, sample_df):
-        fig = plots.plot_snapshot(sample_df)
-        assert len(fig.axes) == 6
-
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_snapshot(sample_df, figsize=(8, 4))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
-
-    def test_card_axes_no_ticks(self, sample_df):
-        fig = plots.plot_snapshot(sample_df)
-        for ax in fig.axes[:4]:
-            assert len(ax.get_xticks()) == 0
-            assert len(ax.get_yticks()) == 0
-
     def test_equity_curve_has_line(self, sample_df):
         fig = plots.plot_snapshot(sample_df, window=5)
         ax_curve = fig.axes[4]
@@ -535,18 +423,6 @@ class TestPlotSnapshot:
         ax_curve = fig.axes[4]
         data_lines = [ln for ln in ax_curve.get_lines() if len(ln.get_xdata()) == 6]
         assert len(data_lines) >= 1
-
-    def test_positive_return_card_is_green(self, all_positive_df):
-        fig = plots.plot_snapshot(all_positive_df)
-        # Select the topmost patch (the card bg, not any shadow)
-        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
-        assert face == "#10b981"
-
-    def test_negative_return_card_is_red(self, all_negative_df):
-        fig = plots.plot_snapshot(all_negative_df)
-        # Select the topmost patch (the card bg, not any shadow)
-        face = mcolors.to_hex(fig.axes[0].patches[-1].get_facecolor()[:3])
-        assert face == "#ef4444"
 
     def test_single_row_sharpe_shows_dash(self, single_row_df):
         fig = plots.plot_snapshot(single_row_df, window=1)

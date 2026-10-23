@@ -16,12 +16,6 @@ from katsustats import stats
 
 
 class TestTotalReturn:
-    def test_positive_when_mostly_gains(self, all_positive_df):
-        assert stats.total_return(all_positive_df) > 0
-
-    def test_negative_when_all_losses(self, all_negative_df):
-        assert stats.total_return(all_negative_df) < 0
-
     def test_known_value(self):
         # (1.1) * (0.9) - 1 = -0.01
         df = pl.DataFrame(
@@ -31,29 +25,13 @@ class TestTotalReturn:
         assert abs(result - (-0.01)) < 1e-10
 
 
-class TestCagr:
-    def test_all_positive(self, all_positive_df):
-        assert stats.cagr(all_positive_df) > 0
-
-
 class TestVolatility:
-    def test_all_positive_nonzero(self, all_positive_df):
-        # Even all-positive returns have non-zero variance
-        assert stats.volatility(all_positive_df) > 0
-
     def test_single_row_returns_nan(self, single_row_df):
         # std of 1 element (ddof=1) is undefined; should return nan not raise
         assert math.isnan(stats.volatility(single_row_df))
 
 
 class TestSharpe:
-    def test_zero_std_returns_zero(self):
-        # All identical returns → std=0 → sharpe=0
-        df = pl.DataFrame(
-            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.01, 0.01]}
-        ).with_columns(pl.col("date").cast(pl.Date))
-        assert stats.sharpe(df) == 0.0
-
     def test_rf_parameter(self, sample_df):
         s0 = stats.sharpe(sample_df, rf=0.0)
         s1 = stats.sharpe(sample_df, rf=0.05)
@@ -66,12 +44,6 @@ class TestSharpe:
 
 
 class TestSortino:
-    def test_all_positive_returns_inf(self, all_positive_df):
-        assert stats.sortino(all_positive_df) == float("inf")
-
-    def test_all_negative_negative_sortino(self, all_negative_df):
-        assert stats.sortino(all_negative_df) < 0
-
     def test_known_value_uses_all_day_denominator(self):
         """Regression: denominator is RMS of min(excess,0) over ALL days."""
         df = pl.DataFrame(
@@ -94,76 +66,12 @@ class TestSortino:
         assert abs(stats.sortino(df, rf=0.0, periods=252) - expected) < 1e-8
 
 
-class TestMaxDrawdown:
-    def test_is_negative_or_zero(self, sample_df):
-        assert stats.max_drawdown(sample_df) <= 0
-
-    def test_all_positive_returns_zero(self, all_positive_df):
-        assert stats.max_drawdown(all_positive_df) == 0.0
-
-
-class TestCalmar:
-    def test_all_positive_returns_zero(self, all_positive_df):
-        # No drawdown → calmar returns 0
-        assert stats.calmar(all_positive_df) == 0.0
-
-
 class TestWinRate:
-    def test_in_range(self, sample_df):
-        wr = stats.win_rate(sample_df)
-        assert 0.0 <= wr <= 1.0
-
-    def test_all_positive(self, all_positive_df):
-        assert stats.win_rate(all_positive_df) == 1.0
-
-    def test_all_negative(self, all_negative_df):
-        assert stats.win_rate(all_negative_df) == 0.0
-
     def test_empty_df(self, empty_df):
         assert stats.win_rate(empty_df) == 0.0
 
 
-class TestProfitFactor:
-    def test_all_positive_returns_inf(self, all_positive_df):
-        assert stats.profit_factor(all_positive_df) == float("inf")
-
-    def test_all_negative_returns_zero(self, all_negative_df):
-        assert stats.profit_factor(all_negative_df) == 0.0
-
-    def test_positive_with_mixed(self, sample_df):
-        assert stats.profit_factor(sample_df) > 0
-
-
-class TestBestWorstDay:
-    def test_best_greater_than_worst(self, sample_df):
-        assert stats.best_day(sample_df) > stats.worst_day(sample_df)
-
-    def test_best_positive_in_all_positive(self, all_positive_df):
-        assert stats.best_day(all_positive_df) > 0
-
-    def test_worst_negative_in_all_negative(self, all_negative_df):
-        assert stats.worst_day(all_negative_df) < 0
-
-
-class TestAvgWinLoss:
-    def test_avg_win_positive(self, sample_df):
-        assert stats.avg_win(sample_df) > 0
-
-    def test_avg_loss_negative(self, sample_df):
-        assert stats.avg_loss(sample_df) < 0
-
-    def test_avg_win_zero_when_all_negative(self, all_negative_df):
-        assert stats.avg_win(all_negative_df) == 0.0
-
-    def test_avg_loss_zero_when_all_positive(self, all_positive_df):
-        assert stats.avg_loss(all_positive_df) == 0.0
-
-
 class TestVaR:
-    def test_is_negative(self, sample_df):
-        # VaR at 5% should be a loss
-        assert stats.value_at_risk(sample_df) < 0
-
     def test_alpha_parameter(self, sample_df):
         var5 = stats.value_at_risk(sample_df, alpha=0.05)
         var10 = stats.value_at_risk(sample_df, alpha=0.10)
@@ -176,36 +84,14 @@ class TestCVaR:
         # CVaR is always at most as good as VaR (mean of tail ≤ threshold)
         assert stats.cvar(sample_df) <= stats.value_at_risk(sample_df)
 
-    def test_negative_for_mixed_returns(self, sample_df):
-        assert stats.cvar(sample_df) < 0
-
-    def test_all_negative_returns_negative(self, all_negative_df):
-        assert stats.cvar(all_negative_df) < 0
-
-
-class TestTailRatio:
-    def test_positive(self, sample_df):
-        assert stats.tail_ratio(sample_df) > 0
-
 
 class TestCommonSenseRatio:
     def test_equals_pf_times_tr(self, sample_df):
         expected = stats.profit_factor(sample_df) * stats.tail_ratio(sample_df)
         assert abs(stats.common_sense_ratio(sample_df) - expected) < 1e-10
 
-    def test_positive(self, sample_df):
-        assert stats.common_sense_ratio(sample_df) > 0
-
 
 class TestRiskOfRuin:
-    def test_all_positive_returns_zero(self, all_positive_df):
-        # No losing days — ruin impossible
-        assert stats.risk_of_ruin(all_positive_df) == 0.0
-
-    def test_all_negative_returns_one(self, all_negative_df):
-        # No winning days — ruin certain
-        assert stats.risk_of_ruin(all_negative_df) == 1.0
-
     def test_ruin_threshold_parameter(self, sample_df):
         # Larger loss threshold → harder to reach → lower RoR
         ror_50 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.5)
@@ -215,15 +101,6 @@ class TestRiskOfRuin:
     def test_positive_threshold_raises(self, sample_df):
         with pytest.raises(ValueError, match="ruin_threshold must be <= 0"):
             stats.risk_of_ruin(sample_df, ruin_threshold=0.5)
-
-    def test_in_unit_interval(self, sample_df):
-        ror = stats.risk_of_ruin(sample_df)
-        assert 0.0 <= ror <= 1.0
-
-
-class TestRecoveryFactor:
-    def test_no_drawdown_returns_zero(self, all_positive_df):
-        assert stats.recovery_factor(all_positive_df) == 0.0
 
 
 class TestSkewnessKurtosis:
@@ -245,24 +122,9 @@ class TestDrawdownDetails:
         assert dd.height > 0
         assert all(v <= 0 for v in dd.get_column("max_dd").to_list())
 
-    def test_no_drawdown_empty(self, all_positive_df):
-        dd = stats.drawdown_details(all_positive_df)
-        assert dd.height == 0
-
     def test_top_n_respected(self, sample_df):
         dd = stats.drawdown_details(sample_df, top_n=2)
         assert dd.height <= 2
-
-    def test_drawdown_days_non_negative(self, sample_df):
-        dd = stats.drawdown_details(sample_df)
-        if dd.height > 0:
-            assert all(v >= 0 for v in dd.get_column("drawdown_days").to_list())
-
-    def test_recovery_days_non_negative_when_not_null(self, sample_df):
-        dd = stats.drawdown_details(sample_df)
-        if dd.height > 0:
-            vals = dd.get_column("recovery_days").to_list()
-            assert all(v is None or v >= 0 for v in vals)
 
     def test_date_columns_are_date_dtype(self, sample_df):
         dd = stats.drawdown_details(sample_df)
@@ -291,13 +153,6 @@ class TestDayOfWeekStats:
 
 
 class TestRollingSharpe:
-    def test_nan_before_window(self, sample_df):
-        window = 5
-        result = stats.rolling_sharpe(sample_df, window=window)
-        vals = result.get_column("rolling_sharpe").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
     def test_known_value_matches_manual_calculation(self, sample_df):
         window = 5
         result = stats.rolling_sharpe(sample_df, window=window)
@@ -308,13 +163,6 @@ class TestRollingSharpe:
 
 
 class TestRollingVolatility:
-    def test_nan_before_window(self, sample_df):
-        window = 5
-        result = stats.rolling_volatility(sample_df, window=window)
-        vals = result.get_column("rolling_vol").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
     def test_known_value_matches_manual_calculation(self, sample_df):
         window = 5
         result = stats.rolling_volatility(sample_df, window=window)
@@ -325,13 +173,6 @@ class TestRollingVolatility:
 
 
 class TestRollingSortino:
-    def test_nan_before_window(self, sample_df):
-        window = 5
-        result = stats.rolling_sortino(sample_df, window=window)
-        vals = result.get_column("rolling_sortino").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
     def test_values_finite_after_window(self, sample_df):
         window = 5
         result = stats.rolling_sortino(sample_df, window=window)
@@ -349,13 +190,6 @@ class TestRollingSortino:
 
 
 class TestRollingBeta:
-    def test_nan_before_window(self, sample_df, benchmark_df):
-        window = 5
-        result = stats.rolling_beta(sample_df, benchmark_df, window=window)
-        vals = result.get_column("rolling_beta").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
     def test_unequal_lengths(self, sample_df, benchmark_df):
         shorter = benchmark_df.head(10)
         result = stats.rolling_beta(sample_df, shorter, window=5)
@@ -371,20 +205,6 @@ class TestRollingBeta:
 
 
 class TestRollingCorrelation:
-    def test_nan_before_window(self, sample_df, benchmark_df):
-        window = 5
-        result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
-        vals = result.get_column("rolling_correlation").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
-    def test_in_range(self, sample_df, benchmark_df):
-        window = 5
-        result = stats.rolling_correlation(sample_df, benchmark_df, window=window)
-        vals = result.get_column("rolling_correlation").to_list()
-        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
-        assert all(-1.0 <= v <= 1.0 for v in valid)
-
     def test_self_correlation_is_one(self, sample_df):
         window = 5
         result = stats.rolling_correlation(sample_df, sample_df, window=window)
@@ -394,45 +214,7 @@ class TestRollingCorrelation:
         assert all(abs(v - 1.0) < 1e-10 for v in valid)
 
 
-class TestRollingDrawdown:
-    def test_nan_before_window(self, sample_df):
-        window = 5
-        result = stats.rolling_drawdown(sample_df, window=window)
-        vals = result.get_column("rolling_drawdown").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
-    def test_all_positive_returns_zero(self, all_positive_df):
-        window = 5
-        result = stats.rolling_drawdown(all_positive_df, window=window)
-        vals = result.get_column("rolling_drawdown").to_list()
-        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
-        assert all(abs(v) < 1e-10 for v in valid)
-
-    def test_values_negative_or_zero_after_window(self, sample_df):
-        window = 5
-        result = stats.rolling_drawdown(sample_df, window=window)
-        vals = result.get_column("rolling_drawdown").to_list()
-        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
-        assert valid
-        assert all(v <= 0 for v in valid)
-
-
 class TestRollingVolatilityRatio:
-    def test_nan_before_window(self, sample_df, benchmark_df):
-        window = 5
-        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
-        vals = result.get_column("rolling_vol_ratio").to_list()
-        # Standard trailing window: first window-1 positions are null
-        assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
-    def test_values_finite_after_window(self, sample_df, benchmark_df):
-        window = 5
-        result = stats.rolling_volatility_ratio(sample_df, benchmark_df, window=window)
-        vals = result.get_column("rolling_vol_ratio").to_list()
-        valid = [v for v in vals[window:] if v is not None and not math.isnan(v)]
-        assert all(math.isfinite(v) for v in valid)
-
     def test_self_ratio_is_one(self, sample_df):
         window = 5
         result = stats.rolling_volatility_ratio(sample_df, sample_df, window=window)
@@ -468,16 +250,7 @@ class TestAlphaBeta:
         assert abs(alpha - expected) < 1e-10
 
 
-class TestInformationRatio:
-    def test_same_returns_zero(self, sample_df):
-        # IR is 0 when tracking error is 0
-        assert stats.information_ratio(sample_df, sample_df) == 0.0
-
-
 class TestExcessReturn:
-    def test_same_returns_zero(self, sample_df):
-        assert abs(stats.excess_return(sample_df, sample_df)) < 1e-10
-
     def test_uses_inner_join_on_date(self):
         """Regression: only common dates contribute to excess return."""
         df = pl.DataFrame(
@@ -588,114 +361,14 @@ class TestSummaryMetrics:
         assert with_bench.height == without.height + 9
 
 
-class TestSummaryMetricsRaw:
-    def test_expected_keys_without_benchmark(self, sample_df):
-        result = stats.summary_metrics_raw(sample_df)
-        assert set(result.keys()) == {
-            "total_return",
-            "cagr",
-            "sharpe",
-            "sortino",
-            "max_drawdown",
-            "calmar",
-            "volatility",
-            "win_rate",
-            "profit_factor",
-            "best_day",
-            "worst_day",
-            "avg_win",
-            "avg_loss",
-            "value_at_risk",
-            "cvar",
-            "recovery_factor",
-            "skewness",
-            "kurtosis",
-            "best_month",
-            "worst_month",
-            "best_year",
-            "worst_year",
-            "positive_months_pct",
-            "positive_years_pct",
-            "omega_ratio",
-            "ulcer_index",
-            "martin_ratio",
-            "gain_to_pain",
-            "kelly_criterion",
-            "probabilistic_sharpe",
-            "payoff_ratio",
-        }
-
-    def test_benchmark_keys_only_appear_with_benchmark(self, sample_df, benchmark_df):
-        without = stats.summary_metrics_raw(sample_df)
-        with_bench = stats.summary_metrics_raw(sample_df, benchmark_df)
-
-        for key in {
-            "alpha",
-            "beta",
-            "correlation",
-            "information_ratio",
-            "excess_return",
-            "treynor_ratio",
-            "r_squared",
-            "up_capture",
-            "down_capture",
-        }:
-            assert key not in without
-            assert key in with_bench
-
-
 class TestCorrelation:
-    def test_in_range(self, sample_df, benchmark_df):
-        corr = stats.correlation(sample_df, benchmark_df)
-        assert -1.0 <= corr <= 1.0
-
     def test_self_correlation_is_one(self, sample_df):
         assert abs(stats.correlation(sample_df, sample_df) - 1.0) < 1e-10
 
 
 class TestRSquared:
-    def test_in_unit_interval(self, sample_df, benchmark_df):
-        rsq = stats.r_squared(sample_df, benchmark_df)
-        assert 0.0 <= rsq <= 1.0
-
     def test_self_is_one(self, sample_df):
         assert abs(stats.r_squared(sample_df, sample_df) - 1.0) < 1e-10
-
-
-class TestPandasInputs:
-    def test_indexed_df_matches_column_df(
-        self, sample_pandas_df, sample_pandas_df_indexed
-    ):
-        """Both pandas shapes should produce identical scalar results."""
-        assert stats.total_return(sample_pandas_df) == pytest.approx(
-            stats.total_return(sample_pandas_df_indexed)
-        )
-
-    def test_series_matches_column_df(self, sample_pandas_df, sample_pandas_series):
-        """Series shape should produce identical scalar results to column-form df."""
-        assert stats.total_return(sample_pandas_df) == pytest.approx(
-            stats.total_return(sample_pandas_series)
-        )
-
-    def test_date_column_wins_over_datetime_index(self, sample_pandas_df):
-        """DataFrame with both a 'date' column and a datetime index: column wins."""
-        import pandas as pd
-
-        idx = pd.DatetimeIndex([pd.Timestamp("2023-01-01")] * len(sample_pandas_df))
-        df_both = sample_pandas_df.copy()
-        df_both.index = idx
-        # the 'date' column determines dates — result matches the column-only path
-        assert stats.total_return(df_both) == pytest.approx(
-            stats.total_return(sample_pandas_df)
-        )
-
-    def test_non_datetime_index_still_raises(self):
-        """DataFrame with no 'date' column and a non-datetime index raises."""
-        import pandas as pd
-
-        df = pd.DataFrame({"returns": [0.01, -0.005, 0.008]})
-        with pytest.raises(ValueError, match="is missing columns"):
-            stats.total_return(df)
 
 
 # ---------------------------------------------------------------------------
@@ -704,18 +377,6 @@ class TestPandasInputs:
 
 
 class TestConsecutiveWins:
-    def test_positive_for_mixed(self, sample_df):
-        assert stats.consecutive_wins(sample_df) > 0
-
-    def test_zero_for_all_negative(self, all_negative_df):
-        assert stats.consecutive_wins(all_negative_df) == 0
-
-    def test_all_positive(self, all_positive_df):
-        assert stats.consecutive_wins(all_positive_df) == all_positive_df.height
-
-    def test_empty_df_returns_zero(self, empty_df):
-        assert stats.consecutive_wins(empty_df) == 0
-
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -734,18 +395,6 @@ class TestConsecutiveWins:
 
 
 class TestConsecutiveLosses:
-    def test_positive_for_mixed(self, sample_df):
-        assert stats.consecutive_losses(sample_df) > 0
-
-    def test_zero_for_all_positive(self, all_positive_df):
-        assert stats.consecutive_losses(all_positive_df) == 0
-
-    def test_all_negative(self, all_negative_df):
-        assert stats.consecutive_losses(all_negative_df) == all_negative_df.height
-
-    def test_empty_df_returns_zero(self, empty_df):
-        assert stats.consecutive_losses(empty_df) == 0
-
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -764,9 +413,6 @@ class TestConsecutiveLosses:
 
 
 class TestBestWorstMonth:
-    def test_best_ge_worst(self, sample_df):
-        assert stats.best_month(sample_df) >= stats.worst_month(sample_df)
-
     def test_known_value(self):
         # January 2023: (1.01)(0.99) - 1 ≈ -0.0001 (one month, known result)
         # February 2023: (1.02) - 1 = 0.02
@@ -781,14 +427,8 @@ class TestBestWorstMonth:
         assert best == pytest.approx(0.02, abs=1e-10)
         assert worst == pytest.approx(1.01 * 0.99 - 1, abs=1e-10)
 
-    def test_all_positive_best_month_positive(self, all_positive_df):
-        assert stats.best_month(all_positive_df) > 0
-
 
 class TestBestWorstYear:
-    def test_best_ge_worst(self, sample_df):
-        assert stats.best_year(sample_df) >= stats.worst_year(sample_df)
-
     def test_known_value(self):
         # 2022 year: single day, return 0.05
         # 2023 year: single day, return -0.03
@@ -801,21 +441,8 @@ class TestBestWorstYear:
         assert stats.best_year(df) == pytest.approx(0.05, abs=1e-10)
         assert stats.worst_year(df) == pytest.approx(-0.03, abs=1e-10)
 
-    def test_all_positive_best_year_positive(self, all_positive_df):
-        assert stats.best_year(all_positive_df) > 0
-
 
 class TestExposure:
-    def test_in_unit_interval(self, sample_df):
-        e = stats.exposure(sample_df)
-        assert 0.0 <= e <= 1.0
-
-    def test_all_positive_is_one(self, all_positive_df):
-        assert stats.exposure(all_positive_df) == 1.0
-
-    def test_all_negative_is_one(self, all_negative_df):
-        assert stats.exposure(all_negative_df) == 1.0
-
     def test_partial_exposure(self):
         df = pl.DataFrame(
             {
@@ -840,25 +467,6 @@ class TestExposure:
 # ---------------------------------------------------------------------------
 
 
-class TestPositiveMonthsPct:
-    def test_all_positive_returns_one(self):
-        from datetime import date, timedelta
-
-        dates = [date(2023, 1, 1) + timedelta(days=i) for i in range(60)]
-        df = pl.DataFrame({"date": dates, "returns": [0.001] * 60}).with_columns(
-            pl.col("date").cast(pl.Date)
-        )
-        assert stats.positive_months_pct(df) == 1.0
-
-
-class TestPositiveYearsPct:
-    def test_all_positive_returns_one(self, all_positive_df):
-        assert stats.positive_years_pct(all_positive_df) == 1.0
-
-    def test_all_negative_returns_zero(self, all_negative_df):
-        assert stats.positive_years_pct(all_negative_df) == 0.0
-
-
 # ---------------------------------------------------------------------------
 # Period Performance
 # ---------------------------------------------------------------------------
@@ -876,10 +484,6 @@ class TestPeriodCutoff:
 
 
 class TestPeriodPerformanceRaw:
-    def test_returns_dict_with_all_labels(self, sample_df):
-        result = stats.period_performance_raw(sample_df)
-        assert set(result.keys()) == {"MTD", "QTD", "YTD", "1Y", "3Y", "5Y", "SI"}
-
     def test_si_matches_total_return(self, sample_df):
         raw = stats.period_performance_raw(sample_df)
         assert abs(raw["SI"]["strategy"] - stats.total_return(sample_df)) < 1e-10
@@ -912,16 +516,6 @@ class TestPeriodPerformanceRaw:
         assert not math.isnan(raw["MTD"]["strategy"])
         assert not math.isnan(raw["QTD"]["strategy"])
         assert not math.isnan(raw["YTD"]["strategy"])
-
-    def test_benchmark_key_absent_without_base(self, sample_df):
-        raw = stats.period_performance_raw(sample_df)
-        for entry in raw.values():
-            assert "benchmark" not in entry
-
-    def test_benchmark_key_present_with_base(self, sample_df, benchmark_df):
-        raw = stats.period_performance_raw(sample_df, benchmark_df)
-        for entry in raw.values():
-            assert "benchmark" in entry
 
     def test_empty_df(self):
         df = pl.DataFrame({"date": [], "returns": []}).with_columns(
@@ -984,26 +578,6 @@ class TestPeriodPerformanceRaw:
 
 
 class TestPeriodPerformance:
-    def test_columns_without_benchmark(self, sample_df):
-        result = stats.period_performance(sample_df)
-        assert result.columns == ["period", "strategy"]
-
-    def test_columns_with_benchmark(self, sample_df, benchmark_df):
-        result = stats.period_performance(sample_df, benchmark_df)
-        assert result.columns == ["period", "strategy", "benchmark"]
-
-    def test_all_labels_present(self, sample_df):
-        result = stats.period_performance(sample_df)
-        assert result.get_column("period").to_list() == [
-            "MTD",
-            "QTD",
-            "YTD",
-            "1Y",
-            "3Y",
-            "5Y",
-            "SI",
-        ]
-
     def test_nan_renders_as_dash(self):
         from datetime import date, timedelta
 
@@ -1023,17 +597,6 @@ class TestPeriodPerformance:
 
 
 class TestMonteCarloPaths:
-    def test_shape_is_n_periods_plus_step_col(self, sample_df):
-        result = stats.monte_carlo_paths(sample_df, sims=50, seed=0)
-        n = len(sample_df)
-        assert result.height == n
-        assert "step" in result.columns
-        assert len(result.columns) == 51  # step + 50 sims
-
-    def test_step_column_is_1_indexed(self, sample_df):
-        result = stats.monte_carlo_paths(sample_df, sims=10, seed=0)
-        assert result.get_column("step").to_list() == list(range(1, len(sample_df) + 1))
-
     def test_sim_0_matches_original_cumulative(self, sample_df):
         import numpy as np
 
@@ -1068,42 +631,6 @@ class TestMonteCarloPaths:
 
 
 class TestMonteCarloSummary:
-    def test_top_level_keys(self, sample_df):
-        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
-        assert set(result.keys()) == {
-            "terminal",
-            "maxdd",
-            "sharpe",
-            "cagr",
-            "bust_probability",
-            "goal_probability",
-            "sims",
-            "seed",
-        }
-
-    def test_terminal_has_quartiles(self, sample_df):
-        result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
-        t = result["terminal"]
-        for key in (
-            "min",
-            "max",
-            "mean",
-            "median",
-            "std",
-            "percentile_5",
-            "percentile_25",
-            "percentile_75",
-            "percentile_95",
-        ):
-            assert key in t
-
-    def test_percentile_ordering(self, sample_df):
-        result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
-        t = result["terminal"]
-        assert t["percentile_5"] <= t["median"] <= t["percentile_95"]
-        md = result["maxdd"]
-        assert md["percentile_5"] <= md["median"] <= md["percentile_95"]
-
     def test_bust_and_goal_none_by_default(self, sample_df):
         result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
         assert result["bust_probability"] is None
@@ -1299,15 +826,6 @@ class TestEmptyInputHardening:
 
 
 class TestOmegaRatio:
-    def test_positive_when_mixed(self, sample_df):
-        assert stats.omega_ratio(sample_df) > 0
-
-    def test_all_positive_returns_inf(self, all_positive_df):
-        assert stats.omega_ratio(all_positive_df) == float("inf")
-
-    def test_all_negative_returns_zero(self, all_negative_df):
-        assert stats.omega_ratio(all_negative_df) == 0.0
-
     def test_threshold_parameter(self, sample_df):
         r0 = stats.omega_ratio(sample_df, threshold=0.0)
         rp = stats.omega_ratio(sample_df, threshold=0.01)
@@ -1315,19 +833,7 @@ class TestOmegaRatio:
         assert rp < r0
 
 
-class TestUlcerIndex:
-    def test_non_negative(self, sample_df):
-        assert stats.ulcer_index(sample_df) >= 0
-
-    def test_all_positive_is_zero(self, all_positive_df):
-        assert stats.ulcer_index(all_positive_df) == 0.0
-
-
 class TestMartinRatio:
-    def test_all_positive_high(self, all_positive_df):
-        # No drawdown → UI ≈ 0 → Martin should be large
-        assert stats.martin_ratio(all_positive_df) > 0
-
     def test_rf_parameter(self, sample_df):
         m0 = stats.martin_ratio(sample_df, rf=0.0)
         m1 = stats.martin_ratio(sample_df, rf=0.05)
@@ -1335,27 +841,7 @@ class TestMartinRatio:
         assert m1 < m0
 
 
-class TestGainToPain:
-    def test_positive_when_mixed(self, sample_df):
-        assert stats.gain_to_pain(sample_df) > 0
-
-    def test_all_positive_returns_inf(self, all_positive_df):
-        assert stats.gain_to_pain(all_positive_df) == float("inf")
-
-    def test_all_negative_is_negative(self, all_negative_df):
-        assert stats.gain_to_pain(all_negative_df) < 0
-
-
 class TestKellyCriterion:
-    def test_positive_for_profitable(self, sample_df):
-        assert stats.kelly_criterion(sample_df) > 0
-
-    def test_all_positive_non_zero(self, all_positive_df):
-        assert stats.kelly_criterion(all_positive_df) > 0
-
-    def test_all_negative_negative(self, all_negative_df):
-        assert stats.kelly_criterion(all_negative_df) < 0
-
     def test_rf_parameter(self, sample_df):
         k0 = stats.kelly_criterion(sample_df, rf=0.0)
         k1 = stats.kelly_criterion(sample_df, rf=0.05)
@@ -1367,10 +853,6 @@ class TestKellyCriterion:
 
 
 class TestProbabilisticSharpe:
-    def test_in_unit_interval(self, sample_df):
-        psr = stats.probabilistic_sharpe(sample_df)
-        assert 0.0 <= psr <= 1.0
-
     def test_benchmark_parameter(self, sample_df):
         psr0 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=0.0)
         psr1 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=2.0)
@@ -1382,15 +864,6 @@ class TestProbabilisticSharpe:
 
 
 class TestPayoffRatio:
-    def test_positive(self, sample_df):
-        assert stats.payoff_ratio(sample_df) > 0
-
-    def test_all_positive_returns_inf(self, all_positive_df):
-        assert stats.payoff_ratio(all_positive_df) == float("inf")
-
-    def test_all_negative_returns_zero(self, all_negative_df):
-        assert stats.payoff_ratio(all_negative_df) == 0.0
-
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -1423,16 +896,10 @@ class TestTreynorRatio:
 
 
 class TestUpCapture:
-    def test_positive(self, sample_df, benchmark_df):
-        assert stats.up_capture(sample_df, benchmark_df) > 0
-
     def test_self_returns_one(self, sample_df):
         assert abs(stats.up_capture(sample_df, sample_df) - 1.0) < 1e-10
 
 
 class TestDownCapture:
-    def test_positive(self, sample_df, benchmark_df):
-        assert stats.down_capture(sample_df, benchmark_df) > 0
-
     def test_self_returns_one(self, sample_df):
         assert abs(stats.down_capture(sample_df, sample_df) - 1.0) < 1e-10

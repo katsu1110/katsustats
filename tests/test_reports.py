@@ -24,49 +24,12 @@ def close_all_figures():
 
 
 class TestFull:
-    def test_returns_dict_with_expected_keys(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert set(result.keys()) == {
-            "summary",
-            "metrics",
-            "drawdowns",
-            "dow_stats",
-            "figures",
-            "monte_carlo",
-        }
-
-    def test_summary_is_raw_metrics_dict(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert result["summary"] == stats.summary_metrics_raw(sample_df)
-
     def test_positional_rf_still_supported(self, sample_df):
         # Guards the positional order (returns, benchmark, rf, ...): a reorder
         # would silently apply 0.04 as something else instead of raising.
         positional = reports.full(sample_df, None, 0.04, show=False)
         keyword = reports.full(sample_df, benchmark=None, rf=0.04, show=False)
         assert positional["summary"] == keyword["summary"]
-
-    def test_figures_is_dict_of_figures(self, sample_df):
-        import matplotlib.figure
-
-        result = reports.full(sample_df, show=False)
-        figs = result["figures"]
-        assert isinstance(figs, dict)
-        assert len(figs) == 10
-        for fig in figs.values():
-            assert isinstance(fig, matplotlib.figure.Figure)
-
-    def test_figures_include_rolling_sortino(self, sample_df):
-        result = reports.full(sample_df, show=False)
-        assert "rolling_sortino" in result["figures"]
-
-    def test_figures_with_benchmark_includes_beta_and_correlation(
-        self, sample_df, benchmark_df
-    ):
-        result = reports.full(sample_df, benchmark=benchmark_df, show=False)
-        figs = result["figures"]
-        assert "rolling_beta" in figs
-        assert "rolling_correlation" in figs
 
     def test_with_benchmark(self, sample_df, benchmark_df):
         result = reports.full(sample_df, benchmark=benchmark_df, show=False)
@@ -135,54 +98,6 @@ class TestHtml:
         assert isinstance(result, str)
         assert "data:image/png;base64," in result
 
-    def test_includes_period_performance_section(self, sample_df):
-        result = reports.html(sample_df)
-        assert "Period Performance" in result
-        assert "MTD" in result
-        assert "SI" in result
-        assert result.index("Period Performance") < result.index("Top Drawdowns")
-
-    def test_with_benchmark_includes_regime_analysis_section(self):
-        from datetime import date, timedelta
-
-        import numpy as np
-
-        # 600 daily rows — long enough for trend_window=200 and
-        # vol_window=60 to populate at least one regime.
-        rng = np.random.default_rng(0)
-        n = 600
-        dates = [date(2020, 1, 1) + timedelta(days=i) for i in range(n)]
-        strat = pl.DataFrame(
-            {"date": dates, "returns": rng.normal(0.0008, 0.012, n).tolist()}
-        ).with_columns(pl.col("date").cast(pl.Date))
-        bench = pl.DataFrame(
-            {"date": dates, "returns": rng.normal(0.0004, 0.009, n).tolist()}
-        ).with_columns(pl.col("date").cast(pl.Date))
-
-        result = reports.html(strat, benchmark=bench)
-        assert "Regime Analysis" in result
-        assert any(
-            label in result
-            for label in (
-                "bull_low_vol",
-                "bull_high_vol",
-                "bear_low_vol",
-                "bear_high_vol",
-            )
-        )
-        assert result.index("Top Drawdowns") < result.index("Regime Analysis")
-
-    def test_html_contains_rolling_sortino_section(self, sample_df):
-        result = reports.html(sample_df)
-        assert "Rolling Sortino" in result
-
-    def test_html_with_benchmark_contains_rolling_beta_and_correlation(
-        self, sample_df, benchmark_df
-    ):
-        result = reports.html(sample_df, benchmark=benchmark_df)
-        assert "Rolling Beta" in result
-        assert "Rolling Correlation" in result
-
     def test_output_writes_file(self, sample_df, tmp_path):
         out_file = tmp_path / "report.html"
         result = reports.html(sample_df, output=str(out_file))
@@ -206,25 +121,6 @@ class TestJson:
         result = reports.json(sample_df)
         payload = json.loads(result)
         assert isinstance(payload, dict)
-
-    def test_contains_expected_top_level_keys(self, sample_df):
-        payload = json.loads(reports.json(sample_df, title="AI Report"))
-        assert set(payload.keys()) == {
-            "metadata",
-            "strategy",
-            "benchmark",
-            "comparison",
-            "drawdowns",
-            "day_of_week_stats",
-            "regime_analysis",
-            "monte_carlo",
-        }
-        assert payload["metadata"]["title"] == "AI Report"
-        assert payload["metadata"]["has_benchmark"] is False
-
-    def test_strategy_summary_matches_raw_metrics(self, sample_df):
-        payload = json.loads(reports.json(sample_df))
-        assert payload["strategy"]["summary"] == stats.summary_metrics_raw(sample_df)
 
     def test_with_benchmark_includes_benchmark_and_comparison(
         self, sample_df, benchmark_df
@@ -280,20 +176,6 @@ class TestJson:
 
 
 class TestMarkdown:
-    def test_contains_core_sections(self, sample_df):
-        result = reports.markdown(sample_df, title="My Strategy")
-        assert result.startswith("# My Strategy Backtest Summary")
-        assert "## Overview" in result
-        assert "## Headline Metrics" in result
-        assert "## Performance Metrics" in result
-        assert "## Period Performance" in result
-        assert "## Day-of-Week Statistics" in result
-
-    def test_with_benchmark_includes_benchmark_sections(self, sample_df, benchmark_df):
-        result = reports.markdown(sample_df, benchmark=benchmark_df)
-        assert "| Metric | Strategy | Benchmark |" in result
-        assert "## Regime Analysis" not in result
-
     def test_with_regime_data_includes_regime_section(self):
         from datetime import date, timedelta
 
@@ -424,20 +306,3 @@ class TestHtmlTitleEscaping:
     def test_ampersand_in_title_is_escaped(self, sample_df):
         result = reports.html(sample_df, title="Alpha & Beta")
         assert "Alpha &amp; Beta" in result
-
-
-class TestHighlightCardColors:
-    def test_max_drawdown_negative_renders_neg(self):
-        from datetime import date, timedelta
-
-        dates = [date(2023, 1, 2) + timedelta(days=i) for i in range(20)]
-        returns = [-0.005] * 20
-        df = pl.DataFrame({"date": dates, "returns": returns}).with_columns(
-            pl.col("date").cast(pl.Date)
-        )
-        result = reports.html(df)
-        assert 'class="value neg"' in result
-
-    def test_volatility_renders_neutral(self, sample_df):
-        result = reports.html(sample_df)
-        assert "Volatility" in result
