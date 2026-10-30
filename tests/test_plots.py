@@ -251,20 +251,14 @@ class TestPlotRollingVolatility:
 # ---------------------------------------------------------------------------
 
 
-
-
 # ---------------------------------------------------------------------------
 # plot_rolling_beta
 # ---------------------------------------------------------------------------
 
 
-
-
 # ---------------------------------------------------------------------------
 # plot_rolling_correlation
 # ---------------------------------------------------------------------------
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +378,6 @@ class TestPlotReturnsVsBenchmark:
 
 
 class TestPlotMonteCarlo:
-
     def test_has_median_and_original_lines(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
         ax = fig.axes[0]
@@ -398,14 +391,12 @@ class TestPlotMonteCarlo:
         assert len(lines) <= 205
 
 
-
 # ---------------------------------------------------------------------------
 # plot_monte_carlo_distribution
 # ---------------------------------------------------------------------------
 
 
 class TestPlotMonteCarloDistribution:
-
     def test_has_vertical_percentile_lines(self, sample_df):
         fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
         ax = fig.axes[0]
@@ -432,7 +423,6 @@ class TestPlotMonteCarloDistribution:
 
         result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
         assert result["maxdd"]["std"] > 0
-
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +467,6 @@ class TestPlotSnapshot:
     def test_axes_count(self, sample_df):
         fig = plots.plot_snapshot(sample_df)
         assert len(fig.axes) == 6
-
 
     def test_card_axes_no_ticks(self, sample_df):
         fig = plots.plot_snapshot(sample_df)

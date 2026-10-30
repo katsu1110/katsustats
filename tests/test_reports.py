@@ -24,7 +24,6 @@ def close_all_figures():
 
 
 class TestFull:
-
     def test_summary_is_raw_metrics_dict(self, sample_df):
         result = reports.full(sample_df, show=False)
         assert result["summary"] == stats.summary_metrics_raw(sample_df)
@@ -197,7 +196,6 @@ class TestJson:
         payload = json.loads(result)
         assert isinstance(payload, dict)
 
-
     def test_strategy_summary_matches_raw_metrics(self, sample_df):
         payload = json.loads(reports.json(sample_df))
         assert payload["strategy"]["summary"] == stats.summary_metrics_raw(sample_df)
@@ -256,7 +254,6 @@ class TestJson:
 
 
 class TestMarkdown:
-
     def test_with_benchmark_includes_benchmark_sections(self, sample_df, benchmark_df):
         result = reports.markdown(sample_df, benchmark=benchmark_df)
         assert "| Metric | Strategy | Benchmark |" in result

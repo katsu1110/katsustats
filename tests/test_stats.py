@@ -16,8 +16,6 @@ from katsustats import stats
 
 
 class TestTotalReturn:
-
-
     def test_known_value(self):
         # (1.1) * (0.9) - 1 = -0.01
         df = pl.DataFrame(
@@ -27,12 +25,7 @@ class TestTotalReturn:
         assert abs(result - (-0.01)) < 1e-10
 
 
-
-
-
-
 class TestSharpe:
-
     def test_rf_parameter(self, sample_df):
         s0 = stats.sharpe(sample_df, rf=0.0)
         s1 = stats.sharpe(sample_df, rf=0.05)
@@ -40,10 +33,7 @@ class TestSharpe:
         assert s0 != s1
 
 
-
 class TestSortino:
-
-
     def test_known_value_uses_all_day_denominator(self):
         """Regression: denominator is RMS of min(excess,0) over ALL days."""
         df = pl.DataFrame(
@@ -66,15 +56,7 @@ class TestSortino:
         assert abs(stats.sortino(df, rf=0.0, periods=252) - expected) < 1e-8
 
 
-
-
-
-
-
-
 class TestProfitFactor:
-
-
     def test_positive_with_mixed(self, sample_df):
         assert stats.profit_factor(sample_df) > 0
 
@@ -82,8 +64,6 @@ class TestProfitFactor:
 class TestBestWorstDay:
     def test_best_greater_than_worst(self, sample_df):
         assert stats.best_day(sample_df) > stats.worst_day(sample_df)
-
-
 
 
 class TestAvgWinLoss:
@@ -94,10 +74,7 @@ class TestAvgWinLoss:
         assert stats.avg_loss(sample_df) < 0
 
 
-
-
 class TestVaR:
-
     def test_alpha_parameter(self, sample_df):
         var5 = stats.value_at_risk(sample_df, alpha=0.05)
         var10 = stats.value_at_risk(sample_df, alpha=0.10)
@@ -112,7 +89,6 @@ class TestCVaR:
 
     def test_negative_for_mixed_returns(self, sample_df):
         assert stats.cvar(sample_df) < 0
-
 
 
 class TestTailRatio:
@@ -130,8 +106,6 @@ class TestCommonSenseRatio:
 
 
 class TestRiskOfRuin:
-
-
     def test_ruin_threshold_parameter(self, sample_df):
         # Larger loss threshold → harder to reach → lower RoR
         ror_50 = stats.risk_of_ruin(sample_df, ruin_threshold=-0.5)
@@ -141,9 +115,6 @@ class TestRiskOfRuin:
     def test_positive_threshold_raises(self, sample_df):
         with pytest.raises(ValueError, match="ruin_threshold must be <= 0"):
             stats.risk_of_ruin(sample_df, ruin_threshold=0.5)
-
-
-
 
 
 class TestSkewnessKurtosis:
@@ -165,12 +136,9 @@ class TestDrawdownDetails:
         assert dd.height > 0
         assert all(v <= 0 for v in dd.get_column("max_dd").to_list())
 
-
     def test_top_n_respected(self, sample_df):
         dd = stats.drawdown_details(sample_df, top_n=2)
         assert dd.height <= 2
-
-
 
     def test_date_columns_are_date_dtype(self, sample_df):
         dd = stats.drawdown_details(sample_df)
@@ -286,7 +254,6 @@ class TestRollingCorrelation:
         # Standard trailing window: first window-1 positions are null
         assert all(v is None or math.isnan(v) for v in vals[: window - 1])
 
-
     def test_self_correlation_is_one(self, sample_df):
         window = 5
         result = stats.rolling_correlation(sample_df, sample_df, window=window)
@@ -303,7 +270,6 @@ class TestRollingDrawdown:
         vals = result.get_column("rolling_drawdown").to_list()
         # Standard trailing window: first window-1 positions are null
         assert all(v is None or math.isnan(v) for v in vals[: window - 1])
-
 
     def test_values_negative_or_zero_after_window(self, sample_df):
         window = 5
@@ -364,10 +330,7 @@ class TestAlphaBeta:
         assert abs(alpha - expected) < 1e-10
 
 
-
-
 class TestExcessReturn:
-
     def test_uses_inner_join_on_date(self):
         """Regression: only common dates contribute to excess return."""
         df = pl.DataFrame(
@@ -398,7 +361,6 @@ class TestRegimeStats:
     def test_requires_benchmark(self, sample_df):
         with pytest.raises(ValueError, match="base_df is required for regime_stats"):
             stats.regime_stats(sample_df, None)
-
 
     def test_large_windows_leave_short_series_with_nan_metrics(
         self, sample_df, benchmark_df
@@ -461,7 +423,6 @@ class TestSummaryMetrics:
 
 
 class TestSummaryMetricsRaw:
-
     def test_benchmark_keys_only_appear_with_benchmark(self, sample_df, benchmark_df):
         without = stats.summary_metrics_raw(sample_df)
         with_bench = stats.summary_metrics_raw(sample_df, benchmark_df)
@@ -482,13 +443,11 @@ class TestSummaryMetricsRaw:
 
 
 class TestCorrelation:
-
     def test_self_correlation_is_one(self, sample_df):
         assert abs(stats.correlation(sample_df, sample_df) - 1.0) < 1e-10
 
 
 class TestRSquared:
-
     def test_self_is_one(self, sample_df):
         assert abs(stats.r_squared(sample_df, sample_df) - 1.0) < 1e-10
 
@@ -535,10 +494,6 @@ class TestPandasInputs:
 
 
 class TestConsecutiveWins:
-
-
-
-
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -557,10 +512,6 @@ class TestConsecutiveWins:
 
 
 class TestConsecutiveLosses:
-
-
-
-
     def test_known_value(self):
         df = pl.DataFrame(
             {
@@ -597,7 +548,6 @@ class TestBestWorstMonth:
         assert worst == pytest.approx(1.01 * 0.99 - 1, abs=1e-10)
 
 
-
 class TestBestWorstYear:
     def test_best_ge_worst(self, sample_df):
         assert stats.best_year(sample_df) >= stats.worst_year(sample_df)
@@ -615,11 +565,7 @@ class TestBestWorstYear:
         assert stats.worst_year(df) == pytest.approx(-0.03, abs=1e-10)
 
 
-
 class TestExposure:
-
-
-
     def test_partial_exposure(self):
         df = pl.DataFrame(
             {
@@ -630,14 +576,9 @@ class TestExposure:
         assert stats.exposure(df) == pytest.approx(0.5, abs=1e-10)
 
 
-
 # ---------------------------------------------------------------------------
 # Positive months / years pct
 # ---------------------------------------------------------------------------
-
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -657,11 +598,9 @@ class TestPeriodCutoff:
 
 
 class TestPeriodPerformanceRaw:
-
     def test_si_matches_total_return(self, sample_df):
         raw = stats.period_performance_raw(sample_df)
         assert abs(raw["SI"]["strategy"] - stats.total_return(sample_df)) < 1e-10
-
 
     def test_calendar_period_start_on_weekend_not_nan(self):
         # 2023-01-01 was a Sunday; first trading day is 2023-01-02.
@@ -689,7 +628,6 @@ class TestPeriodPerformanceRaw:
         raw = stats.period_performance_raw(sample_df, benchmark_df)
         for entry in raw.values():
             assert "benchmark" in entry
-
 
     def test_pandas_intraday_inputs_are_aggregated_to_daily_before_join(self):
         from datetime import datetime, time, timedelta
@@ -828,7 +766,6 @@ class TestMonteCarloPaths:
 
 
 class TestMonteCarloSummary:
-
     def test_terminal_has_quartiles(self, sample_df):
         result = stats.monte_carlo_summary(sample_df, sims=50, seed=0)
         t = result["terminal"]
@@ -989,17 +926,12 @@ class TestMonteCarloMethod:
 # ---------------------------------------------------------------------------
 
 
-
-
 # ---------------------------------------------------------------------------
 # Risk-Adjusted Ratios (#14)
 # ---------------------------------------------------------------------------
 
 
 class TestOmegaRatio:
-
-
-
     def test_threshold_parameter(self, sample_df):
         r0 = stats.omega_ratio(sample_df, threshold=0.0)
         rp = stats.omega_ratio(sample_df, threshold=0.01)
@@ -1007,10 +939,7 @@ class TestOmegaRatio:
         assert rp < r0
 
 
-
-
 class TestMartinRatio:
-
     def test_rf_parameter(self, sample_df):
         m0 = stats.martin_ratio(sample_df, rf=0.0)
         m1 = stats.martin_ratio(sample_df, rf=0.05)
@@ -1018,12 +947,7 @@ class TestMartinRatio:
         assert m1 < m0
 
 
-
-
 class TestKellyCriterion:
-
-
-
     def test_rf_parameter(self, sample_df):
         k0 = stats.kelly_criterion(sample_df, rf=0.0)
         k1 = stats.kelly_criterion(sample_df, rf=0.05)
@@ -1031,9 +955,7 @@ class TestKellyCriterion:
         assert k1 < k0
 
 
-
 class TestProbabilisticSharpe:
-
     def test_benchmark_parameter(self, sample_df):
         psr0 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=0.0)
         psr1 = stats.probabilistic_sharpe(sample_df, benchmark_sharpe=2.0)
@@ -1041,12 +963,9 @@ class TestProbabilisticSharpe:
         assert psr1 < psr0
 
 
-
 class TestPayoffRatio:
     def test_positive(self, sample_df):
         assert stats.payoff_ratio(sample_df) > 0
-
-
 
     def test_known_value(self):
         df = pl.DataFrame(
@@ -1068,7 +987,6 @@ class TestPayoffRatio:
 
 
 class TestTreynorRatio:
-
     def test_rf_parameter(self, sample_df, benchmark_df):
         t0 = stats.treynor_ratio(sample_df, benchmark_df, rf=0.0)
         t1 = stats.treynor_ratio(sample_df, benchmark_df, rf=0.05)

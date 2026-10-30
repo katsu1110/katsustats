@@ -95,7 +95,6 @@ class TestReportCommand:
         assert out.exists()
         assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
-
     def test_json_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "out.json"
         monkeypatch.setattr(
@@ -115,7 +114,6 @@ class TestReportCommand:
         payload = json.loads(out.read_text(encoding="utf-8"))
         assert payload["metadata"]["has_benchmark"] is False
 
-
     def test_markdown_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "out.md"
         monkeypatch.setattr(
@@ -133,7 +131,6 @@ class TestReportCommand:
         main()
         assert out.exists()
         assert out.read_text(encoding="utf-8").startswith("# Strategy Backtest Summary")
-
 
     def test_custom_column_names(
         self, csv_file_custom_cols: Path, tmp_path: Path, monkeypatch
@@ -483,7 +480,6 @@ class TestSnapshotCommand:
         main()
         assert out.exists()
         assert out.read_bytes()[:4] == b"\x89PNG"
-
 
     def test_custom_window_string(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "snap.png"
