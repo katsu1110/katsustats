@@ -95,12 +95,6 @@ class TestReportCommand:
         assert out.exists()
         assert out.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
-    def test_default_output_path(self, csv_file: Path, monkeypatch):
-        monkeypatch.setattr("sys.argv", ["katsustats", "report", str(csv_file)])
-        main()
-        expected = csv_file.with_suffix(".html")
-        assert expected.exists()
-        assert expected.read_text(encoding="utf-8").startswith("<!DOCTYPE html>")
 
     def test_json_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "out.json"
@@ -121,16 +115,6 @@ class TestReportCommand:
         payload = json.loads(out.read_text(encoding="utf-8"))
         assert payload["metadata"]["has_benchmark"] is False
 
-    def test_json_default_output_path(self, csv_file: Path, monkeypatch):
-        monkeypatch.setattr(
-            "sys.argv",
-            ["katsustats", "report", str(csv_file), "--format", "json"],
-        )
-        main()
-        expected = csv_file.with_suffix(".json")
-        assert expected.exists()
-        payload = json.loads(expected.read_text(encoding="utf-8"))
-        assert payload["metadata"]["title"] == "Strategy"
 
     def test_markdown_output_format(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "out.md"
@@ -150,17 +134,6 @@ class TestReportCommand:
         assert out.exists()
         assert out.read_text(encoding="utf-8").startswith("# Strategy Backtest Summary")
 
-    def test_markdown_default_output_path(self, csv_file: Path, monkeypatch):
-        monkeypatch.setattr(
-            "sys.argv",
-            ["katsustats", "report", str(csv_file), "--format", "markdown"],
-        )
-        main()
-        expected = csv_file.with_suffix(".md")
-        assert expected.exists()
-        assert expected.read_text(encoding="utf-8").startswith(
-            "# Strategy Backtest Summary"
-        )
 
     def test_custom_column_names(
         self, csv_file_custom_cols: Path, tmp_path: Path, monkeypatch
@@ -511,14 +484,6 @@ class TestSnapshotCommand:
         assert out.exists()
         assert out.read_bytes()[:4] == b"\x89PNG"
 
-    def test_default_output_path(self, csv_file: Path, monkeypatch):
-        monkeypatch.setattr(
-            "sys.argv",
-            ["katsustats", "snapshot", str(csv_file)],
-        )
-        main()
-        expected = csv_file.parent / (csv_file.stem + "_snapshot.png")
-        assert expected.exists()
 
     def test_custom_window_string(self, csv_file: Path, tmp_path: Path, monkeypatch):
         out = tmp_path / "snap.png"

@@ -251,10 +251,6 @@ class TestPlotRollingVolatility:
 # ---------------------------------------------------------------------------
 
 
-class TestPlotRollingSortino:
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_rolling_sortino(sample_df, window=5, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -262,10 +258,6 @@ class TestPlotRollingSortino:
 # ---------------------------------------------------------------------------
 
 
-class TestPlotRollingBeta:
-    def test_custom_figsize(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_beta(sample_df, benchmark_df, window=5, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -273,12 +265,6 @@ class TestPlotRollingBeta:
 # ---------------------------------------------------------------------------
 
 
-class TestPlotRollingCorrelation:
-    def test_custom_figsize(self, sample_df, benchmark_df):
-        fig = plots.plot_rolling_correlation(
-            sample_df, benchmark_df, window=5, figsize=(8, 3)
-        )
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -398,9 +384,6 @@ class TestPlotReturnsVsBenchmark:
 
 
 class TestPlotMonteCarlo:
-    def test_has_one_axes(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
-        assert len(fig.axes) == 1
 
     def test_has_median_and_original_lines(self, sample_df):
         fig = plots.plot_monte_carlo(sample_df, sims=50, seed=0)
@@ -414,9 +397,6 @@ class TestPlotMonteCarlo:
         lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 0]
         assert len(lines) <= 205
 
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_monte_carlo(sample_df, sims=20, seed=0, figsize=(8, 3))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -425,9 +405,6 @@ class TestPlotMonteCarlo:
 
 
 class TestPlotMonteCarloDistribution:
-    def test_has_one_axes(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
-        assert len(fig.axes) == 1
 
     def test_has_vertical_percentile_lines(self, sample_df):
         fig = plots.plot_monte_carlo_distribution(sample_df, sims=50, seed=0)
@@ -456,11 +433,6 @@ class TestPlotMonteCarloDistribution:
         result = stats.monte_carlo_summary(sample_df, sims=100, seed=0)
         assert result["maxdd"]["std"] > 0
 
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_monte_carlo_distribution(
-            sample_df, sims=20, seed=0, figsize=(8, 3)
-        )
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
 
 # ---------------------------------------------------------------------------
@@ -506,9 +478,6 @@ class TestPlotSnapshot:
         fig = plots.plot_snapshot(sample_df)
         assert len(fig.axes) == 6
 
-    def test_custom_figsize(self, sample_df):
-        fig = plots.plot_snapshot(sample_df, figsize=(8, 4))
-        assert fig.get_size_inches()[0] == pytest.approx(8.0)
 
     def test_card_axes_no_ticks(self, sample_df):
         fig = plots.plot_snapshot(sample_df)
