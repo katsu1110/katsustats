@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- `stats.probabilistic_sharpe` applies the Bailey–López de Prado variance estimator to the per-period Sharpe ratio. The annualized Sharpe was previously substituted into that estimator, which pushed the reported probability toward 1 for ordinary sample sizes. `benchmark_sharpe` is still annualized, in the same units as `sharpe()`.
+
 ### Breaking changes
 - **Removed flat top-level exports**: `katsustats.sharpe`, `katsustats.html`, `katsustats.plot_cumulative_returns`, and similar names are gone. Use the modules instead: `katsustats.stats.sharpe`, `katsustats.reports.html`, `katsustats.plots.plot_cumulative_returns`.
 - **Column rename**: the required DataFrame column is now `"returns"` (was `"pnl"`).
