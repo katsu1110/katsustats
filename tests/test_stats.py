@@ -1380,6 +1380,83 @@ class TestProbabilisticSharpe:
     def test_single_row(self, single_row_df):
         assert math.isnan(stats.probabilistic_sharpe(single_row_df))
 
+    def test_moment_adjustment_uses_per_period_sharpe(self):
+        """Bailey & López de Prado (2012) scale skew/kurtosis by the per-period Sharpe.
+
+        Plugging the annualized Sharpe into that variance term drives the
+        probability to 1 for ordinary sample sizes.
+        """
+        returns = [
+            0.01,
+            -0.02,
+            0.015,
+            0.005,
+            -0.01,
+            0.02,
+            -0.005,
+            0.008,
+            0.012,
+            -0.015,
+            0.004,
+            -0.006,
+            0.011,
+            0.003,
+            -0.009,
+            0.007,
+            -0.004,
+            0.013,
+            -0.008,
+            0.006,
+        ]
+        periods = 252
+        benchmark = 0.5
+        df = pl.DataFrame(
+            {
+                "date": [f"2023-01-{day:02d}" for day in range(1, len(returns) + 1)],
+                "returns": returns,
+            }
+        ).with_columns(pl.col("date").cast(pl.Date))
+
+        observed = stats.probabilistic_sharpe(
+            df, benchmark_sharpe=benchmark, periods=periods
+        )
+
+        excess = pl.Series(returns)
+        std = float(excess.std())
+        sr_period = float(excess.mean()) / std
+        skew = float(excess.skew())
+        kurt = float(excess.kurtosis()) + 3.0
+        n = len(returns)
+        var_factor = 1.0 - skew * sr_period + (kurt - 1.0) / 4.0 * sr_period**2
+        z = (
+            (sr_period - benchmark / math.sqrt(periods))
+            * math.sqrt(n - 1)
+            / math.sqrt(var_factor)
+        )
+        expected = 0.5 * math.erfc(-z / math.sqrt(2.0))
+        assert observed == pytest.approx(expected, rel=1e-12)
+
+        sr_annual = sr_period * math.sqrt(periods)
+        var_annual = 1.0 - skew * sr_annual + (kurt - 1.0) / 4.0 * sr_annual**2
+        z_annual = (sr_annual - benchmark) * math.sqrt(n - 1) / math.sqrt(var_annual)
+        annualized_estimator = 0.5 * math.erfc(-z_annual / math.sqrt(2.0))
+        assert annualized_estimator - observed > 0.05
+
+    def test_null_returns_are_nan(self):
+        df = pl.DataFrame(
+            {
+                "date": ["2023-01-02", "2023-01-03", "2023-01-04", "2023-01-05"],
+                "returns": [None, None, None, None],
+            }
+        ).with_columns(pl.col("date").cast(pl.Date), pl.col("returns").cast(pl.Float64))
+        assert math.isnan(stats.probabilistic_sharpe(df))
+
+    def test_non_positive_periods_are_nan(self):
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.01, -0.01]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert math.isnan(stats.probabilistic_sharpe(df, periods=0))
+
 
 class TestPayoffRatio:
     def test_positive(self, sample_df):

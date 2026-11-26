@@ -370,31 +370,46 @@ def probabilistic_sharpe(
     rf: float = 0.0,
     periods: int = 252,
 ) -> float:
-    """Probabilistic Sharpe ratio (Bailey-López de Prado).
+    """Probabilistic Sharpe ratio (Bailey and López de Prado, 2012).
 
-    The probability that the observed (annualised) Sharpe ratio is greater than
-    a given benchmark Sharpe (default 0.0).
+    Probability that the true Sharpe ratio exceeds ``benchmark_sharpe``.
+    ``benchmark_sharpe`` is annualized, in the same units as ``sharpe()``.
+    The skewness and kurtosis adjustment uses the per-period Sharpe, because
+    those moments are computed on the observed returns. Substituting the
+    annualized Sharpe into that adjustment inflates the test statistic.
     """
     r = _to_returns(df)
     n = r.len()
-    if n < 2:
+    if n < 2 or periods <= 0:
         return float("nan")
     rf_per_period = rf / periods
     excess = r - rf_per_period
-    std = float(excess.std())
-    if std == 0:
+    std = excess.std()
+    if std is None:
         return float("nan")
-    sr = float(excess.mean()) / std * math.sqrt(periods)
+    std = float(std)
+    if std == 0.0 or math.isnan(std):
+        return float("nan")
+    mean = excess.mean()
+    if mean is None:
+        return float("nan")
+    # Per-period Sharpe. ``sharpe()`` is this value times sqrt(periods).
+    sr = float(mean) / std
+    sr_benchmark = benchmark_sharpe / math.sqrt(periods)
     skew = excess.skew()
     excess_kurt = excess.kurtosis()
     if skew is None or excess_kurt is None:
         return float("nan")
     skew = float(skew)
-    kurt = float(excess_kurt + 3.0)
-    var_est = (1.0 - skew * sr + (kurt - 1.0) / 4.0 * sr**2) / (n - 1)
-    if var_est <= 0:
+    # Polars kurtosis is excess kurtosis (normal = 0). The PSR formula uses
+    # Pearson kurtosis (normal = 3).
+    kurt = float(excess_kurt) + 3.0
+    if math.isnan(skew) or math.isnan(kurt):
         return float("nan")
-    z = (sr - benchmark_sharpe) / math.sqrt(var_est)
+    var_factor = 1.0 - skew * sr + (kurt - 1.0) / 4.0 * sr**2
+    if var_factor <= 0.0:
+        return float("nan")
+    z = (sr - sr_benchmark) * math.sqrt(n - 1) / math.sqrt(var_factor)
     return _norm_cdf(z)
 
 
