@@ -40,7 +40,7 @@ uv build
 - **Testing**: Run `uv run pytest tests/ -v`.
 - **Linting**: Run `uv run ruff check src/ tests/ examples/`.
 - **Formatting**: Run `uv run ruff format src/ tests/ examples/` (CI uses `--check`).
-- **Adding Metrics**: Implement in `stats.py`, register display specs (`_SUMMARY_METRIC_SPECS` or `_FULL_EXTRA_METRICS` in `reports.py`); `summary_metrics_raw()` + JSON/Markdown pick them up automatically.
+- **Adding Metrics**: Implement in `stats.py`, register display specs (`_SUMMARY_METRIC_SPECS` in `stats.py` or `_FULL_EXTRA_METRICS` in `reports.py`); `summary_metrics_raw()` + JSON/Markdown pick them up automatically.
 - **Adding Plots**: Implement in `plots.py` using `_apply_style()`; wire into `reports.full()` figures dict and the HTML builder.
 - **CLI sanity check**: `uv run katsustats report --help`.
 
@@ -48,7 +48,7 @@ uv build
 - `from __future__ import annotations` in all modules; `py.typed` marker for PEP 561
 - snake_case functions, `_` prefix for private helpers; short docstrings on all public functions
 - Section separators: `# ---...---` comment banners
-- Input validation via `assert` or `raise ValueError` in library code; `sys.exit()` with user-facing messages in the CLI
+- Validate inputs explicitly with `raise ValueError` in library code (asserts are stripped under `python -O`); `sys.exit()` with user-facing messages in the CLI
 - Ruff: line-length=88, target py39, select E/W/F/I/UP, ignore E501
 
 ## Agent Skills
