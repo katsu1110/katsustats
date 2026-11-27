@@ -1056,9 +1056,8 @@ def _window_max_drawdown(s: pl.Series) -> float:
     return float(dd.min())
 
 
-def rolling_drawdown(df: DataFrameLike, window: int = 126) -> pl.DataFrame:
-    """Rolling max drawdown over a given window."""
-    df = ensure_polars(df)
+def _rolling_drawdown_map(df: pl.DataFrame, window: int) -> pl.DataFrame:
+    """Rolling max drawdown via a Python callback per window."""
     return (
         df.sort(COL_DATE)
         .with_columns(
@@ -1068,6 +1067,78 @@ def rolling_drawdown(df: DataFrameLike, window: int = 126) -> pl.DataFrame:
         )
         .select([COL_DATE, "rolling_drawdown"])
     )
+
+
+# Rows per vectorized chunk. Bounds the (chunk, window) temporary arrays.
+_ROLLING_DRAWDOWN_CHUNK = 512
+
+
+def _rolling_drawdown_vectorized(df: pl.DataFrame, window: int) -> pl.DataFrame:
+    """Trailing-window max drawdown for a float return series.
+
+    Same definition as ``_window_max_drawdown``: compound each window from 1,
+    track the running peak (floored at 1), and take the minimum drawdown.
+    A window that contains a null stays null. Chunks keep the temporary
+    arrays proportional to the window length rather than the full series.
+    """
+    frame = df.sort(COL_DATE)
+    returns = frame.get_column(COL_RETURNS)
+    null_mask = returns.is_null().to_numpy()
+    values = np.ascontiguousarray(returns.fill_null(np.nan).to_numpy())
+    n = int(values.shape[0])
+    out = np.full(n, np.nan, dtype=values.dtype)
+    # Incomplete windows (and every row, when the series is shorter than the
+    # window) are null, matching rolling_map.
+    output_null = np.ones(n, dtype=bool)
+
+    if n >= window:
+        output_null[window - 1 :] = False
+        if null_mask.any():
+            counts = np.cumsum(null_mask, dtype=np.int64)
+            in_window = counts.copy()
+            in_window[window:] = counts[window:] - counts[:-window]
+            output_null[window - 1 :] = in_window[window - 1 :] > 0
+
+        view = np.lib.stride_tricks.sliding_window_view(values, window)
+        one = np.array(1, dtype=values.dtype)
+        for start in range(0, view.shape[0], _ROLLING_DRAWDOWN_CHUNK):
+            stop = min(start + _ROLLING_DRAWDOWN_CHUNK, view.shape[0])
+            block = np.ascontiguousarray(view[start:stop])
+            cumval = np.cumprod(block + one, axis=1)
+            running_max = np.maximum.accumulate(cumval, axis=1)
+            np.maximum(running_max, one, out=running_max)
+            dd = (cumval - running_max) / running_max
+            # Polars' min() ignores NaN. An all-NaN window stays NaN; a +inf
+            # sentinel would otherwise report inf for that row.
+            filled = np.where(np.isnan(dd), np.inf, dd)
+            mins = filled.min(axis=1).astype(out.dtype, copy=False)
+            mins[np.isnan(dd).all(axis=1)] = np.nan
+            out[start + window - 1 : stop + window - 1] = mins
+
+    drawdown = pl.Series("rolling_drawdown", out)
+    null_idx = np.flatnonzero(output_null)
+    if null_idx.size:
+        drawdown = drawdown.scatter(null_idx, None)
+    return pl.DataFrame(
+        {COL_DATE: frame.get_column(COL_DATE), "rolling_drawdown": drawdown}
+    )
+
+
+def rolling_drawdown(df: DataFrameLike, window: int = 126) -> pl.DataFrame:
+    """Rolling max drawdown over a given window."""
+    frame = ensure_polars(df)
+    # Integer returns compound in integer arithmetic inside the callback, so
+    # only float series take the vectorized path. Non-positive windows stay
+    # on that path too (Polars' historical handling of them).
+    use_vectorized = (
+        isinstance(window, int)
+        and not isinstance(window, bool)
+        and window >= 1
+        and frame.schema[COL_RETURNS] in (pl.Float32, pl.Float64)
+    )
+    if not use_vectorized:
+        return _rolling_drawdown_map(frame, window)
+    return _rolling_drawdown_vectorized(frame, window)
 
 
 def rolling_volatility_ratio(

@@ -417,6 +417,85 @@ class TestRollingDrawdown:
         assert valid
         assert all(v <= 0 for v in valid)
 
+    def test_matches_per_window_formula(self):
+        """Vectorized windows match the per-window compounded-drawdown callback."""
+        n = 600
+        window = 30
+        returns = [((i * 17) % 23 - 11) / 200 for i in range(n)]
+        returns[15] = float("nan")
+        series = pl.Series("returns", returns).scatter(50, None)
+        # Reversed so the implementation must sort before windowing.
+        df = pl.DataFrame(
+            {
+                "date": pl.int_range(0, n, eager=True).cast(pl.Date),
+                "returns": series,
+            }
+        ).reverse()
+
+        def per_window(s: pl.Series) -> float:
+            cumval = (s + 1).cum_prod()
+            running_max = cumval.cum_max().clip(lower_bound=1.0)
+            dd = (cumval - running_max) / running_max
+            return float(dd.min())
+
+        expected = (
+            df.sort("date")
+            .with_columns(
+                pl.col("returns")
+                .rolling_map(per_window, window_size=window)
+                .alias("rolling_drawdown")
+            )
+            .select(["date", "rolling_drawdown"])
+        )
+        result = stats.rolling_drawdown(df, window=window)
+        assert result.equals(expected)
+        # The series is long enough to cross the internal chunk boundary.
+        assert n - window + 1 > stats._ROLLING_DRAWDOWN_CHUNK
+
+    def test_float32_matches_per_window_formula(self):
+        n = 80
+        window = 8
+        returns = pl.Series(
+            "returns",
+            [((i * 13) % 19 - 9) / 100 for i in range(n)],
+            dtype=pl.Float32,
+        )
+        df = pl.DataFrame(
+            {
+                "date": pl.int_range(0, n, eager=True).cast(pl.Date),
+                "returns": returns,
+            }
+        )
+
+        def per_window(s: pl.Series) -> float:
+            cumval = (s + 1).cum_prod()
+            running_max = cumval.cum_max().clip(lower_bound=1.0)
+            dd = (cumval - running_max) / running_max
+            return float(dd.min())
+
+        expected = df.with_columns(
+            pl.col("returns")
+            .rolling_map(per_window, window_size=window)
+            .alias("rolling_drawdown")
+        ).select(["date", "rolling_drawdown"])
+        result = stats.rolling_drawdown(df, window=window)
+        assert result.schema["rolling_drawdown"] == pl.Float32
+        assert result.equals(expected)
+
+    def test_integer_returns_keep_integer_drawdown(self):
+        df = pl.DataFrame(
+            {
+                "date": pl.int_range(0, 8, eager=True).cast(pl.Date),
+                "returns": [0, -1, 2, -3, 1, 0, -2, 4],
+            }
+        )
+        vals = (
+            stats.rolling_drawdown(df, window=3)
+            .get_column("rolling_drawdown")
+            .to_list()
+        )
+        assert vals == [None, None, -1, -1, -5, -5, -2, -6]
+
 
 class TestRollingVolatilityRatio:
     def test_nan_before_window(self, sample_df, benchmark_df):
