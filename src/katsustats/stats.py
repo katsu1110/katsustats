@@ -58,15 +58,25 @@ def total_return(df: DataFrameLike) -> float:
 
 
 def cagr(df: DataFrameLike, periods: int = 252) -> float:
-    """Compound Annual Growth Rate."""
+    """Compound annual growth rate, ``ending_wealth ** (1 / years) - 1``.
+
+    Ending wealth of 0 is a -100% CAGR. Negative ending wealth has no real
+    compound growth rate and returns NaN.
+    """
     r = _to_returns(df)
     n = r.len()
     if n == 0:
         return float("nan")
     total = float((r + 1).product())
     years = n / periods
-    if years <= 0 or total <= 0:
+    if years <= 0:
         return 0.0
+    # 0 ** positive - 1 == -1. A negative base is not a real power for a
+    # fractional year count, and reporting 0 would claim flat growth.
+    if total < 0.0:
+        return float("nan")
+    if total == 0.0:
+        return -1.0
     return float(total ** (1 / years) - 1)
 
 
@@ -1751,10 +1761,10 @@ def monte_carlo_summary(
         std_per_path > 0, excess / std_per_path * np.sqrt(float(periods)), 0.0
     )
 
-    # CAGR per path
+    # CAGR per path. Wealth of 0 is -100%; negative wealth is undefined.
     years = n / periods
     cagr_per_path = np.where(
-        terminal > -1, (1.0 + terminal) ** (1.0 / years) - 1.0, np.nan
+        terminal >= -1.0, (1.0 + terminal) ** (1.0 / years) - 1.0, np.nan
     )
 
     bust_prob: float | None = None

@@ -35,6 +35,31 @@ class TestCagr:
     def test_all_positive(self, all_positive_df):
         assert stats.cagr(all_positive_df) > 0
 
+    def test_partial_loss_matches_compound_growth(self):
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.10, -0.20]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        wealth = 1.10 * 0.80
+        years = 2 / 252
+        expected = wealth ** (1 / years) - 1
+        assert stats.cagr(df, periods=252) == pytest.approx(expected)
+
+    def test_total_loss_is_minus_one(self):
+        # Terminal wealth is 0 after a gain and a -100% day.
+        # 0 ** (1/years) - 1 = -1, not 0% growth.
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.25, -1.0]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert stats.cagr(df) == -1.0
+        assert stats.calmar(df) == pytest.approx(-1.0)
+
+    def test_negative_terminal_wealth_is_nan(self):
+        # Wealth 1.10 * -1.0 = -1.10. A negative base has no real CAGR.
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.10, -2.0]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        assert math.isnan(stats.cagr(df))
+
 
 class TestVolatility:
     def test_all_positive_nonzero(self, all_positive_df):
@@ -1303,6 +1328,20 @@ class TestMonteCarloMethod:
     def test_invalid_method_raises(self, sample_df):
         with pytest.raises(ValueError, match="method must be"):
             stats.monte_carlo_summary(sample_df, sims=10, seed=0, method="invalid")
+
+    def test_wiped_out_path_cagr_is_minus_one(self):
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.25, -1.0]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        result = stats.monte_carlo_summary(df, sims=1, periods=252, seed=0)
+        assert result["cagr"]["mean"] == pytest.approx(-1.0)
+
+    def test_negative_wealth_path_cagr_is_nan(self):
+        df = pl.DataFrame(
+            {"date": ["2023-01-02", "2023-01-03"], "returns": [0.10, -2.0]}
+        ).with_columns(pl.col("date").cast(pl.Date))
+        result = stats.monte_carlo_summary(df, sims=1, periods=252, seed=0)
+        assert math.isnan(result["cagr"]["mean"])
 
     def test_paths_method_bootstrap(self, sample_df):
         result = stats.monte_carlo_paths(sample_df, sims=20, seed=0, method="bootstrap")
